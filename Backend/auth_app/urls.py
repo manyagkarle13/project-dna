@@ -47,8 +47,10 @@ urlpatterns = [
     path('api/repos/create-pr-fix/', views.api_create_pr_with_fix, name='api_create_pr_fix_slash'),
 
     # Auto-fix via AI (generate fix and open PR)
-    path('api/repos/<int:repo_id>/auto-fix', pr_endpoints.api_apply_fix_and_open_pr, name='api_auto_fix'),
-    path('api/repos/<int:repo_id>/auto-fix/', pr_endpoints.api_apply_fix_and_open_pr, name='api_auto_fix_slash'),
+    path('api/repos/<int:repo_id>/apply-fix', pr_endpoints.api_apply_fix_and_open_pr, name='api_apply_fix'),
+    path('api/repos/<int:repo_id>/apply-fix/', pr_endpoints.api_apply_fix_and_open_pr, name='api_apply_fix_slash'),
+    path('api/repos/<int:repo_id>/review-pr', pr_endpoints.api_review_pull_request, name='api_review_pr'),
+    path('api/repos/<int:repo_id>/review-pr/', pr_endpoints.api_review_pull_request, name='api_review_pr_slash'),
 
     # Team Dashboard
     path('api/dashboard/stats', views.api_dashboard_stats, name='api_dashboard_stats'),
