@@ -1157,11 +1157,17 @@ function App() {
                   <div className={`message-content ${isSystemAcknowledgment ? 'system-msg' : ''}`}>
                     <MarkdownRenderer content={msg.text} />
 
-                    {/* Auto-suggest PR creation for fix suggestions */}
-                    {!isUser && connectedRepo && msg.text.includes('FILE:') && msg.text.includes('FIX:') && (
-                      <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+                    {/* Auto-suggest PR creation for fix suggestions or code changes */}
+                    {!isUser && connectedRepo && (msg.text.includes('FILE:') || msg.text.includes('```') || msg.text.toLowerCase().includes('change') || msg.text.toLowerCase().includes('update') || msg.text.toLowerCase().includes('add ')) && !msg.text.includes('PR created') && (
+                      <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <button
-                          onClick={() => handleAutoFixWithPR()}
+                          onClick={() => {
+                            // Show changes in editor or directly create PR
+                            const response = confirm('Review the suggested changes and click OK to create a PR, or Cancel to review manually.');
+                            if (response) {
+                              handleAutoFixWithPR();
+                            }
+                          }}
                           disabled={autoFixPRLoading}
                           style={{
                             padding: '8px 16px',
@@ -1175,7 +1181,25 @@ function App() {
                             opacity: autoFixPRLoading ? 0.6 : 1
                           }}
                         >
-                          {autoFixPRLoading ? 'Creating PR...' : 'Create PR with These Fixes'}
+                          {autoFixPRLoading ? 'Creating PR...' : '📤 Create PR'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            // Highlight that user should review
+                            alert('Review the suggested changes above, then ask me to "create PR" to proceed.');
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            background: 'transparent',
+                            color: 'var(--accent)',
+                            border: '1px solid var(--accent)',
+                            borderRadius: '6px',
+                            fontWeight: 500,
+                            fontSize: '13px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          👁️ Review First
                         </button>
                       </div>
                     )}
@@ -1209,6 +1233,11 @@ function App() {
 
         {/* 3. BOTTOM CHAT INPUT WRAPPER */}
         <div className="chat-input-wrapper">
+
+          {/* Disclaimer */}
+          <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-faint)', marginBottom: '12px', padding: '0 16px' }}>
+            Project DNA can make mistakes. Please review all code changes before merging to your repository.
+          </div>
           
           {/* Connector Pill / Connected chip */}
           <div className="repo-connector-pill-container" ref={popoverRef}>
