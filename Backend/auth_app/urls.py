@@ -3,10 +3,6 @@ from auth_app import views
 from repos import pr_endpoints
 
 urlpatterns = [
-    # Frontend HTML serving
-    path('', views.serve_index, name='serve_index'),
-    path('dashboard.html', views.serve_dashboard, name='serve_dashboard'),
-
     # Local Auth APIs
     path('api/auth/signup', views.api_signup, name='api_signup'),
     path('api/auth/login', views.api_login, name='api_login'),

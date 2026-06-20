@@ -458,11 +458,6 @@ def find_or_create_oauth_user(provider, provider_id, name, email):
 
 
 # Serve frontend HTML files
-def serve_index(request):
-    return render(request, 'index.html')
-
-def serve_dashboard(request):
-    return render(request, 'dashboard.html')
 
 
 # Get list of connected repositories
