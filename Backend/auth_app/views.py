@@ -239,11 +239,11 @@ def auth_google_callback(request):
             
         # 3. Find or create user
         user = find_or_create_oauth_user(provider='google', provider_id=google_id, name=name, email=email)
-        
+
         # 4. Login user session
         django_login(request, user)
-        
-        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html")
+
+        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}")
     except Exception as e:
         print("Google OAuth Exception:", e)
         return HttpResponseRedirect(f"{frontend_url}?auth_error=google_server_exception")
@@ -355,14 +355,14 @@ def auth_github_callback(request):
         # 4. Find or create user
         if is_linking:
             if not request.user.is_authenticated:
-                return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html?link_error=not_authenticated")
+                return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?link_error=not_authenticated")
             user = request.user
             profile = user.profile
             profile.github_id = github_id
             profile.github_username = user_res.get('login')
             profile.github_token = access_token
             profile.save()
-            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html?github_linked=true")
+            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?github_linked=true")
         else:
             user = find_or_create_oauth_user(provider='github', provider_id=github_id, name=name, email=email)
 
@@ -374,16 +374,16 @@ def auth_github_callback(request):
                 profile.save()
             except Exception as e:
                 print("Failed to save github token to profile:", e)
-            
+
             # 5. Login user session
             django_login(request, user)
-            
-            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html")
+
+            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}")
     except Exception as e:
         print("GitHub OAuth Exception:", e)
         error_type = "github_link_exception" if is_linking else "github_server_exception"
         if is_linking:
-            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html?link_error={error_type}")
+            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?link_error={error_type}")
         return HttpResponseRedirect(f"{frontend_url}?auth_error={error_type}")
 
 # Mock Auth view
@@ -405,7 +405,7 @@ def auth_mock_callback(request):
     try:
         user = find_or_create_oauth_user(provider=provider, provider_id=mock_id, name=name, email=email)
         django_login(request, user)
-        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html")
+        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}")
     except Exception as e:
         print("Mock Auth Callback Exception:", e)
         return HttpResponseRedirect(f"{frontend_url}?auth_error=mock_auth_failed")
