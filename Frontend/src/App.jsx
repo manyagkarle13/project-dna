@@ -89,6 +89,7 @@ function App() {
 
   // Connected repository states for active conversation
   const [connectedRepo, setConnectedRepo] = useState(null);
+  const [explicitRepoId, setExplicitRepoId] = useState(null); // Only repos explicitly connected via UI
 
   // Connect popover details
   const [connectPopoverOpen, setConnectPopoverOpen] = useState(false);
@@ -226,6 +227,8 @@ function App() {
         setActiveConversation(data.conversation);
         setMessages(data.messages || []);
         setConnectedRepo(data.conversation ? data.conversation.connected_repo : null);
+        // Reset explicit repo - if they paste a new link, no PR buttons
+        setExplicitRepoId(null);
       }
     } catch (err) {
       console.error('Failed to load conversation details:', err);
@@ -267,6 +270,7 @@ function App() {
     setActiveConversation(null);
     setMessages([]);
     setConnectedRepo(null);
+    setExplicitRepoId(null);
     setShowSummaryBannerCard(false);
     setMobileSidebarOpen(false);
     setMessageInput('');
@@ -379,6 +383,7 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, remaining));
 
       setConnectedRepo(result.repo);
+      setExplicitRepoId(result.repo.id); // Mark as explicitly connected
       setConnectPopoverOpen(false);
       setPastedUrl('');
       setSelectedGithubRepo(null);
@@ -426,6 +431,7 @@ function App() {
   // Disconnect Repository (for current chat session)
   const handleDisconnectRepo = () => {
     setConnectedRepo(null);
+    setExplicitRepoId(null);
     setShowSummaryBannerCard(false);
   };
 
@@ -1194,8 +1200,8 @@ function App() {
                   <div className={`message-content ${isSystemAcknowledgment ? 'system-msg' : ''}`}>
                     <MarkdownRenderer content={msg.text} />
 
-                    {/* Show PR creation only for repo-related code changes */}
-                    {!isUser && connectedRepo && (
+                    {/* Show PR creation only for explicitly connected repos with code changes */}
+                    {!isUser && connectedRepo && explicitRepoId === connectedRepo.id && (
                       (() => {
                         // Only show PR buttons for actual code/repo changes
                         const isCodeChange =
