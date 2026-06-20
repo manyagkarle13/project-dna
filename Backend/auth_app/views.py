@@ -133,21 +133,24 @@ def api_me(request):
     if request.user.is_authenticated:
         # Determine provider
         provider = 'local'
+        github_username = None
         try:
             profile = request.user.profile
             if profile.github_id:
                 provider = 'github'
+                github_username = profile.github_username
             elif profile.google_id:
                 provider = 'google'
         except UserProfile.DoesNotExist:
             pass
-            
+
         return JsonResponse({
             'user': {
                 'id': request.user.id,
                 'name': request.user.first_name or request.user.username,
                 'email': request.user.email,
                 'auth_provider': provider,
+                'github_username': github_username,
                 'github_is_linked': bool(getattr(request.user, 'profile', None) and request.user.profile.github_token)
             }
         })
@@ -356,15 +359,17 @@ def auth_github_callback(request):
             user = request.user
             profile = user.profile
             profile.github_id = github_id
+            profile.github_username = user_res.get('login')
             profile.github_token = access_token
             profile.save()
             return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html?github_linked=true")
         else:
             user = find_or_create_oauth_user(provider='github', provider_id=github_id, name=name, email=email)
-            
-            # Save token in user profile
+
+            # Save token and username in user profile
             try:
                 profile = user.profile
+                profile.github_username = user_res.get('login')
                 profile.github_token = access_token
                 profile.save()
             except Exception as e:
