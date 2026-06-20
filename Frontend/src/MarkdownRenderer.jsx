@@ -24,18 +24,23 @@ export default function MarkdownRenderer({ content }) {
               </code>
             );
           }
-          return null;
+          return (
+            <code className={className} {...props}>
+              {children}
+            </code>
+          );
         },
         pre: ({ node, children, ...props }) => (
           <pre style={{
-            background: 'rgba(0,0,0,0.05)',
+            background: '#1e1e1e',
+            color: '#d4d4d4',
             padding: '12px',
             borderRadius: '8px',
             overflow: 'auto',
             marginBottom: '12px',
             fontSize: '13px',
             lineHeight: '1.5',
-            border: '1px solid rgba(0,0,0,0.1)',
+            border: '1px solid rgba(0,0,0,0.2)',
             fontFamily: 'monospace'
           }} {...props}>
             {children}

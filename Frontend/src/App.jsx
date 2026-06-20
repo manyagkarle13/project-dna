@@ -1156,6 +1156,29 @@ function App() {
                   
                   <div className={`message-content ${isSystemAcknowledgment ? 'system-msg' : ''}`}>
                     <MarkdownRenderer content={msg.text} />
+
+                    {/* Auto-suggest PR creation for fix suggestions */}
+                    {!isUser && connectedRepo && msg.text.includes('FILE:') && msg.text.includes('FIX:') && (
+                      <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleAutoFixWithPR()}
+                          disabled={autoFixPRLoading}
+                          style={{
+                            padding: '8px 16px',
+                            background: 'var(--accent)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: 500,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            opacity: autoFixPRLoading ? 0.6 : 1
+                          }}
+                        >
+                          {autoFixPRLoading ? 'Creating PR...' : 'Create PR with These Fixes'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
