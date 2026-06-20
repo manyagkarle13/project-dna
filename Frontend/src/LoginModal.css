@@ -1,0 +1,202 @@
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.login-modal {
+  background: var(--bg);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  padding: 32px;
+  width: 100%;
+  max-width: 400px;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.login-modal-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.login-close-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-alt);
+  border-radius: 6px;
+  transition: background 0.15s;
+  color: var(--text-muted);
+}
+
+.login-close-btn:hover {
+  background: var(--border);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.login-error {
+  display: flex;
+  align-items: gap;
+  gap: 8px;
+  background: #FFEBEE;
+  color: #D32F2F;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.login-error svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.login-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.login-form-group input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+
+.login-form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-form-group input::placeholder {
+  color: var(--text-faint);
+}
+
+.login-submit-btn {
+  padding: 10px 16px;
+  background: var(--accent);
+  color: white;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.login-submit-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.login-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-github-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text);
+  transition: all 0.15s;
+  margin-bottom: 16px;
+}
+
+.login-github-btn:hover {
+  background: var(--border);
+}
+
+.login-toggle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.login-toggle button {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.login-toggle button:hover {
+  color: var(--accent-hover);
+}
+
+@media (max-width: 640px) {
+  .login-modal {
+    padding: 24px;
+    max-width: 90vw;
+  }
+
+  .login-modal-header h2 {
+    font-size: 20px;
+  }
+}

@@ -1,0 +1,51 @@
+:root {
+  --bg:          #FFFFFF;
+  --bg-alt:      #F7F7F5;
+  --text:        #1A1A1A;
+  --text-muted:  #6E6E6E;
+  --text-faint:  #ABABAB;
+  --accent:      #2D6A4F;
+  --accent-hover:#235c43;
+  --border:      #E5E5E2;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+
+/* Keyframes for spin */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,160 @@
+"""
+GitHub PR creation and PR review endpoints.
+"""
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from auth_app.models import Repository
+from repos.github_api import GitHubAPI, generate_branch_name
+from core.llm import generate_ai_response
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_review_pull_request(request, repo_id):
+    """
+    Review a pull request on a connected repository.
+    POST /api/repos/{repo_id}/review-pr/
+    Body: {pr_number: int}
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    pr_number = data.get('pr_number')
+    if not pr_number:
+        return JsonResponse({'error': 'pr_number required'}, status=400)
+
+    repo = Repository.objects.filter(id=repo_id, user=request.user).first()
+    if not repo:
+        return JsonResponse({'error': 'Repository not found'}, status=404)
+
+    if not repo.user.userprofile.github_token:
+        return JsonResponse({'error': 'GitHub access not linked'}, status=403)
+
+    try:
+        owner, repo_name = repo.full_name.split('/')
+        github = GitHubAPI(repo.user.userprofile.github_token)
+
+        # Fetch PR files
+        pr_files = github.get_pr_files(owner, repo_name, pr_number)
+        if not pr_files:
+            return JsonResponse({'error': 'Could not fetch PR files'}, status=400)
+
+        # Build diff for AI review
+        diff_content = "\n".join([
+            f"FILE: {f['filename']}\nSTATUS: {f['status']}\nCHANGES: +{f['additions']}/-{f['deletions']}\n"
+            for f in pr_files[:10]
+        ])
+
+        # Get AI review
+        review_prompt = f"""Review this GitHub pull request diff and identify:
+1. Code quality issues
+2. Potential bugs or security risks
+3. Performance concerns
+4. Best practice violations
+
+PR Diff:
+{diff_content}
+
+FORMAT YOUR RESPONSE USING MARKDOWN:
+- Use proper line breaks between sections
+- Use headers (## ###) for different categories (Quality Issues, Security Risks, etc.)
+- Use **bold** for emphasis and `code` for code references
+- Use bullet points to list findings
+- Never return a single dense paragraph
+- Be specific with file paths and line numbers when possible
+
+Provide a concise, actionable review."""
+
+        review_text = generate_ai_response(review_prompt, max_tokens=800)
+
+        return JsonResponse({
+            'pr_number': pr_number,
+            'files_changed': len(pr_files),
+            'review': review_text
+        })
+
+    except Exception as e:
+        print(f"Error reviewing PR: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_apply_fix_and_open_pr(request, repo_id):
+    """
+    Apply a fix to code and open a pull request.
+    POST /api/repos/{repo_id}/apply-fix/
+    Body: {file_path: str, fixed_content: str, description: str}
+    Requires: has_full_agent_access (GitHub-linked user)
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    # Check full access
+    if not getattr(request.user, 'has_full_agent_access', False):
+        if not request.user.userprofile.github_token:
+            return JsonResponse({
+                'error': 'GitHub account linking required to create PRs',
+                'phase': 'auth_required'
+            }, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    file_path = data.get('file_path')
+    fixed_content = data.get('fixed_content')
+    description = data.get('description', 'Auto-fix applied by Project DNA')
+
+    if not file_path or not fixed_content:
+        return JsonResponse({'error': 'file_path and fixed_content required'}, status=400)
+
+    repo = Repository.objects.filter(id=repo_id, user=request.user).first()
+    if not repo:
+        return JsonResponse({'error': 'Repository not found'}, status=404)
+
+    try:
+        owner, repo_name = repo.full_name.split('/')
+        github = GitHubAPI(request.user.userprofile.github_token)
+
+        # Create feature branch
+        branch_name = generate_branch_name('fix')
+        github.create_branch(owner, repo_name, branch_name, repo.default_branch)
+
+        # Commit the fix
+        commit_msg = f"Apply auto-fix: {description[:50]}"
+        github.commit_file(owner, repo_name, file_path, fixed_content, commit_msg, branch_name)
+
+        # Open PR
+        pr_title = f"Auto-fix: {description[:60]}"
+        pr_body = f"""This pull request applies an automated fix.
+
+**Description:** {description}
+
+**File(s) Changed:** {file_path}
+
+---
+Generated by Project DNA"""
+
+        pr_result = github.create_pull_request(
+            owner, repo_name, pr_title, pr_body, branch_name, repo.default_branch
+        )
+
+        return JsonResponse({
+            'success': pr_result.get('success', False),
+            'pr_number': pr_result.get('pr_number'),
+            'pr_url': pr_result.get('pr_url'),
+            'message': f'PR created: {pr_result.get("pr_url")}'
+        }, status=201)
+
+    except Exception as e:
+        print(f"Error creating PR: {e}")
+        return JsonResponse({'error': str(e)}, status=500)

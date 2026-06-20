@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project DNA — AI Code Agent for Every Codebase</title>
+  <meta name="description" content="Connect a GitHub repo and Project DNA reads your entire codebase, finds bugs, reviews pull requests, and ships fixes autonomously." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ===== RESET & TOKENS ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #FFFFFF;
+      --bg-alt:      #F7F7F5;
+      --text:        #1A1A1A;
+      --text-muted:  #6E6E6E;
+      --text-faint:  #ABABAB;
+      --accent:      #2D6A4F;
+      --accent-hover:#235c43;
+      --border:      #E5E5E2;
+      --radius-sm:   8px;
+      --radius-md:   12px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { text-decoration: none; color: inherit; }
+    img, video { display: block; max-width: 100%; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+
+    /* ===== CONTAINER ===== */
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 80px;
+    }
+
+    /* ===== NAVBAR ===== */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      height: 64px;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      height: 64px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 80px;
+      gap: 32px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .nav-brand svg { width: 26px; height: 26px; }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      margin-left: auto;
+    }
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: color 150ms;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-signin {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: color 150ms;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+    }
+    .nav-signin:hover { color: var(--text); }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      transition: background 150ms;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* ===== SIGN IN MODAL ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px 40px;
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.14);
+      animation: modalIn 220ms cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.94) translateY(8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px; right: 16px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint);
+      transition: background 150ms, color 150ms;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .modal-close:hover { background: var(--bg-alt); color: var(--text); }
+    .modal-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 28px;
+    }
+    .modal-logo svg { width: 26px; height: 26px; }
+    .modal-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .modal-subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+      line-height: 1.55;
+    }
+    .modal-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .modal-divider span {
+      font-size: 12px;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+    .modal-divider::before,
+    .modal-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .modal-auth-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 13px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      transition: background 150ms, border-color 150ms, box-shadow 150ms;
+      margin-bottom: 12px;
+      font-family: inherit;
+    }
+    .modal-auth-btn:last-child { margin-bottom: 0; }
+    .modal-auth-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .modal-auth-btn.github {
+      background: var(--text);
+      color: #fff;
+      border: 1.5px solid var(--text);
+    }
+    .modal-auth-btn.github:hover { background: #333; border-color: #333; }
+    .modal-auth-btn.google {
+      background: var(--bg);
+      color: var(--text);
+      border: 1.5px solid var(--border);
+    }
+    .modal-auth-btn.google:hover { background: var(--bg-alt); border-color: #CBCBC8; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .modal-footer-note {
+      font-size: 12px;
+      color: var(--text-faint);
+      text-align: center;
+      margin-top: 24px;
+      line-height: 1.6;
+    }
+    .modal-footer-note a { color: var(--accent); }
+    .modal-footer-note a:hover { text-decoration: underline; }
+
+    .modal-form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+    .modal-form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .modal-input {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      background: var(--bg);
+      color: var(--text);
+      transition: border-color 150ms;
+    }
+    .modal-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .modal-error {
+      display: none;
+      font-size: 13px;
+      color: #D32F2F;
+      background: #FFEBEE;
+      border: 1px solid #FFCDD2;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      text-align: left;
+      line-height: 1.4;
+    }
+
+    /* Hamburger */
+    .nav-menu-btn {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      width: 36px;
+      height: 36px;
+      margin-left: auto;
+      margin-right: 12px;
+    }
+    .nav-menu-btn span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+      transition: transform 200ms, opacity 200ms;
+    }
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 64px; left: 0; right: 0; bottom: 0;
+      background: var(--bg);
+      z-index: 99;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      flex-direction: column;
+      gap: 4px;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      display: block;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      transition: color 150ms;
+    }
+    .mobile-menu a:hover { color: var(--text); }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    /* Inner: text left, video right */
+    .hero-inner {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 80px;
+      display: flex;
+      align-items: center;
+      min-height: 100vh;
+      padding-top: 64px;
+    }
+
+    /* Left text column */
+    .hero-content {
+      flex: 0 0 auto;
+      width: 50%;
+      max-width: 540px;
+      text-align: left;
+      position: relative;
+      z-index: 3;
+    }
+
+    /* Right: video wrapper */
+    .hero-video-wrap {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 55vw;
+      height: 100%;
+      overflow: hidden;
+      z-index: 1;
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%);
+      mask-image: linear-gradient(to right, transparent 0%, black 10%);
+    }
+    .hero-video-wrap video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center 20%;
+    }
+
+    /* Gradient vignette — above video (z:2), below text (z:3) */
+    .hero-vignette {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        linear-gradient(to right,
+          #ffffff 0%,
+          #ffffff 30%,
+          rgba(255,255,255,0.75) 42%,
+          rgba(255,255,255,0.20) 54%,
+          transparent 65%
+        ),
+        linear-gradient(to top,
+          rgba(255,255,255,0.95) 0%,
+          rgba(255,255,255,0.50) 7%,
+          transparent 18%
+        );
+    }
+
+    /* Eyebrow */
+    .hero-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: heroFadeIn 400ms ease-out 100ms forwards;
+    }
+
+    .hero-headline {
+      font-size: 56px;
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      color: var(--text);
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: heroFadeIn 400ms ease-out 180ms forwards;
+    }
+
+    .hero-sub {
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 1.65;
+      color: var(--text-muted);
+      max-width: 460px;
+      margin-bottom: 36px;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: heroFadeIn 400ms ease-out 260ms forwards;
+    }
+
+    .hero-buttons {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: heroFadeIn 400ms ease-out 340ms forwards;
+    }
+
+    .btn-dark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--text);
+      border-radius: var(--radius-sm);
+      transition: background 150ms;
+    }
+    .btn-dark:hover { background: #333; }
+    .btn-dark svg, .btn-outline svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: border-color 150ms, background 150ms;
+    }
+    .btn-outline:hover { border-color: #CBCBC8; background: #FAFAFA; }
+
+    @keyframes heroFadeIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scroll cue */
+    .hero-scroll-cue {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 4;
+      font-size: 13px;
+      color: var(--text-faint);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      opacity: 0;
+      animation: heroFadeIn 500ms ease-out 700ms forwards, scrollBounce 2s ease-in-out 1.2s infinite;
+    }
+    @keyframes scrollBounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50%       { transform: translateX(-50%) translateY(6px); }
+    }
+
+    /* ===== TRUST ROW ===== */
+    .trust-row {
+      background: var(--bg-alt);
+      padding: 32px 0;
+      border-top: 1px solid var(--border);
+    }
+    .trust-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .trust-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+    .trust-logos {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .trust-logos span {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-faint);
+    }
+    .trust-sep {
+      width: 1px;
+      height: 16px;
+      background: var(--border);
+    }
+
+    /* ===== HOW IT WORKS ===== */
+    .how-section {
+      padding: 96px 0;
+      background: var(--bg);
+    }
+    .section-heading {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 64px;
+      text-align: center;
+    }
+    .how-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .how-row {
+      display: grid;
+      grid-template-columns: 80px 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+    .how-row:last-child { border-bottom: 1px solid var(--border); }
+    .how-num {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      padding-top: 4px;
+    }
+    .how-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .how-desc {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      padding-left: 16px;
+      border-left: 2px solid var(--border);
+    }
+
+    /* ===== FEATURES ===== */
+    .features-section {
+      padding: 96px 0;
+      background: var(--bg-alt);
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 48px;
+    }
+    .feature-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 32px;
+      transition: box-shadow 200ms, transform 200ms;
+    }
+    .feature-card:hover {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      transform: translateY(-2px);
+    }
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #F0F7F4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .feature-icon svg { width: 20px; height: 20px; stroke: var(--accent); }
+    .feature-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .feature-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    /* ===== CTA ===== */
+    .cta-section {
+      padding: 96px 0;
+      background: var(--bg);
+      text-align: center;
+    }
+    .cta-headline {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 32px;
+    }
+    .cta-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: var(--bg-alt);
+      border-top: 1px solid var(--border);
+      padding: 64px 0 0;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 48px;
+      padding-bottom: 48px;
+      border-bottom: 1px solid var(--border);
+    }
+    .footer-brand {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .footer-brand a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .footer-brand a svg { width: 24px; height: 24px; }
+    .footer-brand p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.65;
+      max-width: 260px;
+    }
+    .footer-col { display: flex; flex-direction: column; gap: 12px; }
+    .footer-col-heading {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 4px;
+    }
+    .footer-col a {
+      font-size: 14px;
+      color: var(--text-muted);
+      transition: color 150ms;
+    }
+    .footer-col a:hover { color: var(--text); }
+    .footer-bottom {
+      padding: 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .footer-copy {
+      font-size: 13px;
+      color: var(--text-faint);
+    }
+
+    /* ===== SCROLL REVEAL ===== */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 500ms ease, transform 500ms ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .container, .nav-inner, .hero-inner { padding: 0 24px; }
+      .nav-links, .nav-actions { display: none; }
+      .nav-menu-btn { display: flex; }
+
+      .hero { display: block; padding-top: 64px; }
+      .hero-inner {
+        min-height: auto;
+        padding: 80px 24px 40px;
+        display: block;
+      }
+      .hero-content { width: 100%; max-width: 100%; text-align: center; }
+      .hero-video-wrap {
+        position: relative;
+        top: auto; right: auto;
+        transform: none;
+        width: 100%;
+        max-width: 380px;
+        margin: 0 auto;
+        display: block;
+        -webkit-mask-image: none;
+        mask-image: none;
+      }
+      .hero-headline { font-size: 36px; }
+      .hero-sub { font-size: 16px; max-width: 100%; }
+      .hero-buttons { flex-direction: column; align-items: stretch; max-width: 360px; margin: 0 auto; }
+      .btn-dark, .btn-outline { justify-content: center; }
+      .how-row { grid-template-columns: 1fr; gap: 8px; padding: 32px 0; }
+      .how-desc { padding-left: 0; border-left: none; }
+      .features-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== NAVBAR ===== -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand" id="nav-brand">
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M8 4C8 4 12 8 14 14C16 20 20 24 20 24" stroke="#1A1A1A" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M20 4C20 4 16 8 14 14C12 20 8 24 8 24" stroke="#2D6A4F" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="9" y1="9" x2="19" y2="9" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="8" y1="14" x2="20" y2="14" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="9" y1="19" x2="19" y2="19" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Project DNA
+      </a>
+
+      <button class="nav-menu-btn" id="nav-menu-btn" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <div class="nav-links" id="nav-links">
+        <a href="#how" id="nav-how">How it works</a>
+        <a href="#features" id="nav-features">Features</a>
+      </div>
+
+      <div class="nav-actions" id="nav-actions">
+        <button class="nav-signin" id="nav-signin" onclick="openSignIn()">Sign in</button>
+        <a href="#" class="btn-primary" id="nav-get-started" onclick="openSignIn(); return false;">Get started</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#how" onclick="closeMobileMenu()">How it works</a>
+    <a href="#features" onclick="closeMobileMenu()">Features</a>
+    <div id="mobile-auth-actions" style="display: flex; flex-direction: column;">
+      <a href="#" onclick="closeMobileMenu(); openSignIn(); return false;">Sign in</a>
+      <a href="#" onclick="closeMobileMenu(); openSignIn(); return false;">Get started</a>
+    </div>
+  </div>
+
+  <!-- ===== SIGN IN MODAL ===== -->
+  <div class="modal-overlay" id="signin-modal" role="dialog" aria-modal="true" aria-label="Sign in to Project DNA">
+    <div class="modal-card" id="modal-card">
+      <button class="modal-close" id="modal-close" onclick="closeSignIn()" aria-label="Close">&times;</button>
+
+      <div class="modal-logo">
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M8 4C8 4 12 8 14 14C16 20 20 24 20 24" stroke="#1A1A1A" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M20 4C20 4 16 8 14 14C12 20 8 24 8 24" stroke="#2D6A4F" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="9" y1="9" x2="19" y2="9" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="8" y1="14" x2="20" y2="14" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="9" y1="19" x2="19" y2="19" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Project DNA
+      </div>
+
+      <h2 class="modal-title" id="modal-title">Welcome back</h2>
+      <p class="modal-subtitle" id="modal-subtitle">Sign in to your account or create one to get started.</p>
+
+      <button class="modal-auth-btn github" id="modal-github-btn" onclick="handleAuth('github')">
+        <svg viewBox="0 0 18 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M9 0C4.03 0 0 4.03 0 9c0 3.98 2.58 7.35 6.16 8.54.45.08.62-.2.62-.43 0-.21-.01-.77-.01-1.51-2.51.55-3.04-1.21-3.04-1.21-.41-1.04-1-1.32-1-1.32-.82-.56.06-.55.06-.55.91.06 1.39.93 1.39.93.8 1.38 2.1.98 2.62.75.08-.58.31-.98.57-1.2-2-.23-4.1-1-4.1-4.46 0-.98.35-1.79.93-2.42-.09-.23-.4-1.15.09-2.39 0 0 .76-.24 2.48.93A8.6 8.6 0 019 4.38c.77.004 1.54.1 2.26.3 1.72-1.17 2.48-.93 2.48-.93.49 1.24.18 2.16.09 2.39.58.63.93 1.44.93 2.42 0 3.47-2.11 4.23-4.12 4.45.32.28.61.83.61 1.67 0 1.2-.01 2.17-.01 2.47 0 .24.16.52.62.43C15.42 16.35 18 12.98 18 9c0-4.97-4.03-9-9-9z"/>
+        </svg>
+        Continue with GitHub
+      </button>
+
+      <button class="modal-auth-btn google" id="modal-google-btn" onclick="handleAuth('google')">
+        <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.26c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+          <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="modal-divider"><span>or</span></div>
+
+      <!-- Error Message -->
+      <div class="modal-error" id="modal-error"></div>
+
+      <!-- Local credentials form -->
+      <form id="modal-auth-form" onsubmit="submitAuthForm(event)">
+        <div class="modal-form-group" id="modal-group-name" style="display: none;">
+          <label for="modal-name">Name</label>
+          <input type="text" id="modal-name" class="modal-input" placeholder="Your name">
+        </div>
+        <div class="modal-form-group">
+          <label for="modal-email">Email address</label>
+          <input type="email" id="modal-email" class="modal-input" placeholder="name@domain.com" required>
+        </div>
+        <div class="modal-form-group">
+          <label for="modal-password">Password</label>
+          <input type="password" id="modal-password" class="modal-input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn-dark" id="modal-submit-btn" style="width: 100%; justify-content: center; margin-top: 12px; padding: 13px 20px; font-size: 14px;">
+          Sign in
+        </button>
+      </form>
+
+      <p class="modal-footer-note" id="modal-toggle-note">
+        Don't have an account? <a href="#" onclick="toggleAuthMode(event)">Sign up</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" id="hero">
+    <!-- Gradient vignette (above video z:2, below text z:3) -->
+    <div class="hero-vignette" aria-hidden="true"></div>
+
+    <!-- Left: text -->
+    <div class="hero-inner">
+      <div class="hero-content">
+        <p class="hero-eyebrow">AI Code Agent</p>
+        <h1 class="hero-headline">Understand any codebase.<br>Fix it autonomously.</h1>
+        <p class="hero-sub">Connect a GitHub repo and Project DNA reads the entire codebase, finds bugs, reviews pull requests, and ships fixes — with you in the loop the whole way.</p>
+        <div class="hero-buttons" id="hero-buttons">
+          <a href="#" class="btn-dark" id="hero-github-btn" onclick="handleAuth('github'); return false;">
+            <svg viewBox="0 0 18 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 0C4.03 0 0 4.03 0 9c0 3.98 2.58 7.35 6.16 8.54.45.08.62-.2.62-.43 0-.21-.01-.77-.01-1.51-2.51.55-3.04-1.21-3.04-1.21-.41-1.04-1-1.32-1-1.32-.82-.56.06-.55.06-.55.91.06 1.39.93 1.39.93.8 1.38 2.1.98 2.62.75.08-.58.31-.98.57-1.2-2-.23-4.1-1-4.1-4.46 0-.98.35-1.79.93-2.42-.09-.23-.4-1.15.09-2.39 0 0 .76-.24 2.48.93A8.6 8.6 0 019 4.38c.77.004 1.54.1 2.26.3 1.72-1.17 2.48-.93 2.48-.93.49 1.24.18 2.16.09 2.39.58.63.93 1.44.93 2.42 0 3.47-2.11 4.23-4.12 4.45.32.28.61.83.61 1.67 0 1.2-.01 2.17-.01 2.47 0 .24.16.52.62.43C15.42 16.35 18 12.98 18 9c0-4.97-4.03-9-9-9z"/></svg>
+            Continue with GitHub
+          </a>
+          <a href="#" class="btn-outline" id="hero-google-btn" onclick="handleAuth('google'); return false;">
+            <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.26c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+            Try with Google
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: robot video -->
+    <div class="hero-video-wrap" aria-hidden="true">
+      <video autoplay muted loop playsinline id="hero-video">
+        <source src="/assets/robot-hero.mp4" type="video/mp4" />
+      </video>
+    </div>
+
+    <p class="hero-scroll-cue" aria-hidden="true">Scroll to explore ↓</p>
+  </section>
+
+  <!-- ===== TRUST ROW ===== -->
+  <section class="trust-row" id="trust-row">
+    <div class="container">
+      <div class="trust-inner reveal">
+        <span class="trust-label">Works with</span>
+        <div class="trust-logos">
+          <span>GitHub</span>
+          <div class="trust-sep"></div>
+          <span>GitLab</span>
+          <div class="trust-sep"></div>
+          <span>Bitbucket</span>
+          <div class="trust-sep"></div>
+          <span>Azure DevOps</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== HOW IT WORKS ===== -->
+  <section class="how-section" id="how">
+    <div class="container">
+      <h2 class="section-heading reveal">How it works</h2>
+      <div class="how-list">
+        <div class="how-row reveal">
+          <span class="how-num">01</span>
+          <h3 class="how-title">Connect your repo</h3>
+          <p class="how-desc">GitHub OAuth or paste a public link. Read-only or full access — you choose.</p>
+        </div>
+        <div class="how-row reveal">
+          <span class="how-num">02</span>
+          <h3 class="how-title">DNA reads everything</h3>
+          <p class="how-desc">Full codebase indexing with vector memory, dependency mapping, and static analysis — done in minutes.</p>
+        </div>
+        <div class="how-row reveal">
+          <span class="how-num">03</span>
+          <h3 class="how-title">Ask, fix, ship</h3>
+          <p class="how-desc">Chat with your code, get bug fixes, review PRs, or let the agent open one itself.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FEATURES ===== -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <h2 class="section-heading reveal">Everything your team needs</h2>
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+          </div>
+          <h3 class="feature-title">Codebase Explorer</h3>
+          <p class="feature-desc">Navigate any repo instantly. DNA maps every file, function, and dependency so you never get lost.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3 class="feature-title">Bug Hunter</h3>
+          <p class="feature-desc">Finds logic errors, security holes, and anti-patterns across your entire codebase — not just open files.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+          </div>
+          <h3 class="feature-title">Code Review</h3>
+          <p class="feature-desc">Automated PR reviews with inline comments, summary reports, and suggested fixes — in seconds.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <h3 class="feature-title">Repo Editor</h3>
+          <p class="feature-desc">Write, edit, and commit code directly. DNA understands context so edits never break unrelated things.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <h3 class="feature-title">AI Chat</h3>
+          <p class="feature-desc">Ask anything about your code. DNA answers with full context — file paths, function signatures, and examples.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <h3 class="feature-title">Team Dashboard</h3>
+          <p class="feature-desc">See code health, open issues, and agent activity across every repo in one clean dashboard.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CTA ===== -->
+  <section class="cta-section" id="cta">
+    <div class="container">
+      <h2 class="cta-headline reveal">Start with your first repo.</h2>
+      <div class="cta-buttons reveal">
+        <a href="#" class="btn-dark" id="cta-github-btn" onclick="handleAuth('github'); return false;">
+          <svg viewBox="0 0 18 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 0C4.03 0 0 4.03 0 9c0 3.98 2.58 7.35 6.16 8.54.45.08.62-.2.62-.43 0-.21-.01-.77-.01-1.51-2.51.55-3.04-1.21-3.04-1.21-.41-1.04-1-1.32-1-1.32-.82-.56.06-.55.06-.55.91.06 1.39.93 1.39.93.8 1.38 2.1.98 2.62.75.08-.58.31-.98.57-1.2-2-.23-4.1-1-4.1-4.46 0-.98.35-1.79.93-2.42-.09-.23-.4-1.15.09-2.39 0 0 .76-.24 2.48.93A8.6 8.6 0 019 4.38c.77.004 1.54.1 2.26.3 1.72-1.17 2.48-.93 2.48-.93.49 1.24.18 2.16.09 2.39.58.63.93 1.44.93 2.42 0 3.47-2.11 4.23-4.12 4.45.32.28.61.83.61 1.67 0 1.2-.01 2.17-.01 2.47 0 .24.16.52.62.43C15.42 16.35 18 12.98 18 9c0-4.97-4.03-9-9-9z"/></svg>
+          Continue with GitHub
+        </a>
+        <a href="#" class="btn-outline" id="cta-google-btn" onclick="handleAuth('google'); return false;">
+          <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.26c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+          Try with Google
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer id="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#" id="footer-brand">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="24" height="24">
+              <path d="M8 4C8 4 12 8 14 14C16 20 20 24 20 24" stroke="#1A1A1A" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M20 4C20 4 16 8 14 14C12 20 8 24 8 24" stroke="#2D6A4F" stroke-width="2.2" stroke-linecap="round"/>
+              <line x1="9" y1="9" x2="19" y2="9" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="8" y1="14" x2="20" y2="14" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="9" y1="19" x2="19" y2="19" stroke="#E5E5E2" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Project DNA
+          </a>
+          <p>AI agents that understand, debug, review, and edit your codebase — autonomously.</p>
+        </div>
+
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Product</h4>
+          <a href="#">Codebase Explorer</a>
+          <a href="#">Bug Hunter</a>
+          <a href="#">Code Review</a>
+          <a href="#">Repo Editor</a>
+        </div>
+
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Resources</h4>
+          <a href="#">Documentation</a>
+          <a href="#">API Reference</a>
+          <a href="#">Changelog</a>
+          <a href="#">Status</a>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; 2026 Project DNA</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===== JS ===== -->
+  <script>
+    // Scroll reveal
+    (function () {
+      var targets = document.querySelectorAll('.reveal');
+      if (!targets.length) return;
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+      targets.forEach(function (el) {
+        if (prefersReduced) el.style.transform = 'none';
+        observer.observe(el);
+      });
+    })();
+
+    // Mobile menu toggle
+    var _mobileOpen = false;
+    (function () {
+      var btn = document.getElementById('nav-menu-btn');
+      var menu = document.getElementById('mobile-menu');
+      if (!btn || !menu) return;
+      btn.addEventListener('click', function () {
+        _mobileOpen = !_mobileOpen;
+        menu.classList.toggle('open', _mobileOpen);
+        btn.setAttribute('aria-expanded', _mobileOpen);
+      });
+    })();
+
+    function closeMobileMenu() {
+      _mobileOpen = false;
+      var menu = document.getElementById('mobile-menu');
+      var btn = document.getElementById('nav-menu-btn');
+      if (menu) menu.classList.remove('open');
+      if (btn) btn.setAttribute('aria-expanded', false);
+    }
+
+    // Sign-in modal
+    function openSignIn() {
+      var overlay = document.getElementById('signin-modal');
+      if (overlay) {
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        // Re-trigger animation
+        var card = document.getElementById('modal-card');
+        if (card) { card.style.animation = 'none'; card.offsetHeight; card.style.animation = ''; }
+      }
+    }
+
+    function closeSignIn() {
+      var overlay = document.getElementById('signin-modal');
+      if (overlay) {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('signin-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeSignIn();
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeSignIn();
+    });
+
+    // Auth mode state
+    var currentAuthMode = 'login'; // 'login' or 'signup'
+
+    function toggleAuthMode(e) {
+      if (e) e.preventDefault();
+      
+      var nameGroup = document.getElementById('modal-group-name');
+      var nameInput = document.getElementById('modal-name');
+      var title = document.getElementById('modal-title');
+      var subtitle = document.getElementById('modal-subtitle');
+      var submitBtn = document.getElementById('modal-submit-btn');
+      var toggleNote = document.getElementById('modal-toggle-note');
+      var errBox = document.getElementById('modal-error');
+      
+      errBox.style.display = 'none';
+      errBox.textContent = '';
+      
+      if (currentAuthMode === 'login') {
+        currentAuthMode = 'signup';
+        nameGroup.style.display = 'block';
+        nameInput.setAttribute('required', 'true');
+        title.textContent = 'Create your account';
+        subtitle.textContent = 'Sign up with your details to get started.';
+        submitBtn.textContent = 'Create account';
+        toggleNote.innerHTML = 'Already have an account? <a href="#" onclick="toggleAuthMode(event)">Sign in</a>';
+      } else {
+        currentAuthMode = 'login';
+        nameGroup.style.display = 'none';
+        nameInput.removeAttribute('required');
+        title.textContent = 'Welcome back';
+        subtitle.textContent = 'Sign in to your account or create one to get started.';
+        submitBtn.textContent = 'Sign in';
+        toggleNote.innerHTML = 'Don\'t have an account? <a href="#" onclick="toggleAuthMode(event)">Sign up</a>';
+      }
+    }
+
+    // Redirect to real/mock OAuth
+    function handleAuth(provider) {
+      var btn = document.getElementById('modal-' + provider + '-btn');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.style.opacity = '0.65';
+      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation:spin 0.8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Redirecting…';
+      window.location.href = '/auth/' + provider;
+    }
+
+    // Submit email/password form
+    async function submitAuthForm(e) {
+      e.preventDefault();
+      var errBox = document.getElementById('modal-error');
+      var nameVal = document.getElementById('modal-name').value;
+      var emailVal = document.getElementById('modal-email').value;
+      var passwordVal = document.getElementById('modal-password').value;
+      var submitBtn = document.getElementById('modal-submit-btn');
+      
+      errBox.style.display = 'none';
+      errBox.textContent = '';
+      
+      var origBtnText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation:spin 0.8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Loading…';
+      
+      var endpoint = currentAuthMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+      var bodyData = currentAuthMode === 'login' 
+        ? { email: emailVal, password: passwordVal }
+        : { name: nameVal, email: emailVal, password: passwordVal };
+        
+      try {
+        var response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        
+        var result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Authentication failed. Please try again.');
+        }
+        
+        // Success: redirect to dashboard
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origBtnText;
+      }
+    }
+
+    // Check user session
+    async function checkUserSession() {
+      try {
+        var response = await fetch('/api/auth/me');
+        var data = await response.json();
+        if (data.user) {
+          // If logged in, redirect directly to dashboard
+          window.location.href = '/dashboard.html';
+        } else {
+          updateNavbar(null);
+          var urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.get('open_signin') === 'true') {
+            openSignIn();
+          }
+        }
+      } catch (err) {
+        console.error('Error checking auth session:', err);
+        updateNavbar(null);
+      }
+    }
+
+    // Update navbar elements for logged in state
+    function updateNavbar(user) {
+      var navActions = document.getElementById('nav-actions');
+      var mobileAuthActions = document.getElementById('mobile-auth-actions');
+      var heroButtons = document.getElementById('hero-buttons');
+      
+      if (user) {
+        // Desktop Navbar
+        var userHtml = '<a href="/dashboard.html" class="btn-primary" style="margin-right: 12px;">Go to Dashboard</a>' +
+                       '<span style="font-size: 14px; font-weight: 600; color: var(--text); border: 1.5px solid var(--border); padding: 8px 14px; border-radius: var(--radius-sm); background: var(--bg-alt); display: inline-flex; align-items: center; gap: 8px;">' +
+                         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' +
+                         'Hi, ' + escapeHTML(user.name) + 
+                       '</span>' +
+                       '<button onclick="handleLogout()" class="nav-signin" style="margin-left: 8px;">Sign out</button>';
+        navActions.innerHTML = userHtml;
+        
+        // Mobile menu navbar
+        var mobileHtml = '<a href="/dashboard.html" style="display: block; font-size: 15px; font-weight: 600; color: var(--accent); padding: 16px 0; border-bottom: 1px solid var(--border);">Go to Dashboard</a>' +
+                           '<span style="display: block; font-size: 15px; font-weight: 600; color: var(--text); padding: 16px 0; border-bottom: 1px solid var(--border);">Hi, ' + escapeHTML(user.name) + '</span>' +
+                           '<a href="#" onclick="closeMobileMenu(); handleLogout(); return false;">Sign out</a>';
+        mobileAuthActions.innerHTML = mobileHtml;
+
+        // Hero CTA buttons
+        if (heroButtons) {
+          heroButtons.innerHTML = '<a href="/dashboard.html" class="btn-dark">Go to Dashboard</a>';
+        }
+      } else {
+        // Desktop reset
+        navActions.innerHTML = '<button class="nav-signin" id="nav-signin" onclick="openSignIn()">Sign in</button>' +
+                               '<a href="#" class="btn-primary" id="nav-get-started" onclick="openSignIn(); return false;">Get started</a>';
+        // Mobile reset
+        mobileAuthActions.innerHTML = '<a href="#" onclick="closeMobileMenu(); openSignIn(); return false;">Sign in</a>' +
+                                      '<a href="#" onclick="closeMobileMenu(); openSignIn(); return false;">Get started</a>';
+        // Hero CTA reset
+        if (heroButtons) {
+          heroButtons.innerHTML = '<a href="#" class="btn-dark" id="hero-github-btn" onclick="handleAuth(\'github\'); return false;">' +
+                                    '<svg viewBox="0 0 18 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 0C4.03 0 0 4.03 0 9c0 3.98 2.58 7.35 6.16 8.54.45.08.62-.2.62-.43 0-.21-.01-.77-.01-1.51-2.51.55-3.04-1.21-3.04-1.21-.41-1.04-1-1.32-1-1.32-.82-.56.06-.55.06-.55.91.06 1.39.93 1.39.93.8 1.38 2.1.98 2.62.75.08-.58.31-.98.57-1.2-2-.23-4.1-1-4.1-4.46 0-.98.35-1.79.93-2.42-.09-.23-.4-1.15.09-2.39 0 0 .76-.24 2.48.93A8.6 8.6 0 019 4.38c.77.004 1.54.1 2.26.3 1.72-1.17 2.48-.93 2.48-.93.49 1.24.18 2.16.09 2.39.58.63.93 1.44.93 2.42 0 3.47-2.11 4.23-4.12 4.45.32.28.61.83.61 1.67 0 1.2-.01 2.17-.01 2.47 0 .24.16.52.62.43C15.42 16.35 18 12.98 18 9c0-4.97-4.03-9-9-9z"/></svg>' +
+                                    'Continue with GitHub' +
+                                  '</a>' +
+                                  '<a href="#" class="btn-outline" id="hero-google-btn" onclick="handleAuth(\'google\'); return false;">' +
+                                    '<svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.26c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>' +
+                                    'Try with Google' +
+                                  '</a>';
+        }
+      }
+    }
+
+    // Logout
+    async function handleLogout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        await checkUserSession();
+      } catch (err) {
+        console.error('Error logging out:', err);
+      }
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    // Run check on page load
+    window.addEventListener('DOMContentLoaded', checkUserSession);
+  </script>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</body>
+</html>

@@ -1,0 +1,78 @@
+/* Code block styling for markdown */
+pre {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #1A1A1A !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  overflow-x: auto !important;
+}
+
+pre code {
+  color: #1A1A1A !important;
+  font-family: 'Courier New', 'SF Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Syntax highlighting - subtle and readable */
+.hljs {
+  background: transparent !important;
+  color: #1A1A1A !important;
+}
+
+.hljs-string { color: #A31515; }
+.hljs-number { color: #098658; }
+.hljs-literal { color: #0000FF; }
+.hljs-attr { color: #FF7700; }
+.hljs-title { color: #0000FF; }
+.hljs-function { color: #0000FF; }
+.hljs-keyword { color: #0000FF; }
+.hljs-comment { color: #008000; }
+.hljs-symbol { color: #9932CC; }
+.hljs-built_in { color: #0000FF; }
+
+/* Inline code styling */
+code:not(pre code) {
+  background: rgba(0, 0, 0, 0.05) !important;
+  padding: 2px 6px !important;
+  border-radius: 3px !important;
+  font-family: 'Courier New', 'SF Mono', monospace !important;
+  font-size: 13px !important;
+  color: #1A1A1A !important;
+}
+
+/* Better list styling */
+ul, ol {
+  margin: 12px 0 !important;
+}
+
+li {
+  margin: 4px 0 !important;
+  line-height: 1.6 !important;
+}
+
+/* Headers */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 16px !important;
+  margin-bottom: 8px !important;
+}
+
+/* Link styling */
+a {
+  color: #0066CC !important;
+  text-decoration: none !important;
+}
+
+a:hover {
+  text-decoration: underline !important;
+}
+
+/* Blockquote styling */
+blockquote {
+  border-left: 3px solid #ccc !important;
+  padding-left: 12px !important;
+  margin-left: 0 !important;
+  color: #666 !important;
+}
+
