@@ -153,3 +153,5 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_TRUSTED_ORIGINS = [
     os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/'),
 ]
+
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
