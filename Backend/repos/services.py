@@ -211,7 +211,7 @@ def collect_sample_files(repo_path, max_files=10, max_size=50000):
     return collected_text
 
 def generate_codebase_summary(file_tree, sample_files):
-    """Generate summary using Hugging Face Inference API (FREE)."""
+    """Generate summary using Groq API (llama-3.1-8b-instant)."""
     prompt = f"""Below is a file tree and sample file contents from a real repository. Base your summary strictly and only on what is shown below. If the content is insufficient to determine the project's real purpose or structure, say so plainly instead of guessing. Never describe files, frameworks, or architecture that are not directly evidenced in the content provided to you.
 
 Write a clear repository summary formatted like an engineer briefing a teammate:

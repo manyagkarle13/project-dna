@@ -24,10 +24,10 @@ def friendly_ai_error(exc):
     lower = raw.lower()
     if "429" in raw or "quota" in lower or "rate limit" in lower or "resource_exhausted" in lower:
         return (
-            "Hugging Face quota or rate limit was reached. Please wait a bit and try again."
+            "API rate limit reached. Please wait a moment and try again."
         )
     if "api key" in lower or "permission" in lower or "unauthenticated" in lower:
-        return "Hugging Face could not authenticate. Please check HUGGINGFACE_API_TOKEN in your backend .env."
+        return "AI service authentication failed. Please check your API key configuration in Backend/.env."
     return "The AI provider could not complete this request. Please try again later."
 
 # Helper to check credentials configuration
@@ -151,7 +151,8 @@ def api_me(request):
                 'email': request.user.email,
                 'auth_provider': provider,
                 'github_username': github_username,
-                'github_is_linked': bool(getattr(request.user, 'profile', None) and request.user.profile.github_token)
+                'github_is_linked': bool(getattr(request.user, 'profile', None) and request.user.profile.github_token),
+                'has_full_agent_access': bool(getattr(request.user, 'profile', None) and request.user.profile.has_full_agent_access)
             }
         })
     else:
@@ -163,7 +164,7 @@ def api_health(request):
         'status': 'healthy',
         'googleCredsSet': has_google_creds(),
         'githubCredsSet': has_github_creds(),
-        'huggingFaceConfigured': bool(os.environ.get('HUGGINGFACE_API_TOKEN') or os.environ.get('HUGGINGFACE_API_KEY')),
+        'groqConfigured': bool(os.environ.get('GROQ_API_KEY')),
     })
 
 # =========================================================================
@@ -479,6 +480,7 @@ def api_repos_list(request):
             'file_count': r.file_count,
             'total_size': r.total_size,
             'status': r.status,
+            'source': r.source,
             'error_message': r.error_message,
             'connected_at': r.connected_at.isoformat()
         })
@@ -579,8 +581,17 @@ def api_repos_connect(request):
             if not conv.messages.filter(role='assistant', content__contains=f"I've successfully connected to **{repo.full_name}**").exists():
                 Message.objects.create(conversation=conv, role='assistant', content=ai_text)
             
+    source = data.get('source', 'public_url')
+    if source == 'github_owned':
+        github_token = getattr(getattr(request.user, 'profile', None), 'github_token', None)
+        if not github_token:
+            source = 'public_url'
+
     existing = Repository.objects.filter(user=request.user, repo_url=repo_url).first()
     if existing:
+        if source == 'github_owned' and existing.source != 'github_owned':
+            existing.source = 'github_owned'
+            existing.save()
         link_repo_to_conv(existing, conversation_id)
         return JsonResponse({
             'repo': {
@@ -593,6 +604,8 @@ def api_repos_connect(request):
                 'file_tree': existing.file_tree,
                 'file_count': existing.file_count,
                 'total_size': existing.total_size,
+                'status': existing.status,
+                'source': existing.source,
                 'connected_at': existing.connected_at.isoformat()
             },
             'message': 'Repository is already connected!'
@@ -609,7 +622,8 @@ def api_repos_connect(request):
         full_name=full_name,
         default_branch=default_branch,
         tech_stack=tech_stack,
-        status='processing'
+        status='processing',
+        source=source
     )
     
     try:
@@ -654,6 +668,7 @@ def api_repos_connect(request):
                 'file_count': repo.file_count,
                 'total_size': repo.total_size,
                 'status': repo.status,
+                'source': repo.source,
                 'error_message': repo.error_message,
                 'connected_at': repo.connected_at.isoformat()
             },
@@ -687,7 +702,7 @@ CURRENT FILE:
 Return ONLY the corrected code in a markdown code block (```language_identifier ... ```). Do not add explanation.
 '''
     response = generate_ai_response(prompt, max_tokens=min(3000, max(800, len(original_content) // 2)))
-    if response.strip() == 'NO_SAFE_FIX' or response.startswith(('ERROR:', 'Hugging Face API error:', 'Request timeout')):
+    if response.strip() == 'NO_SAFE_FIX' or response.startswith(('ERROR:', 'AI service error:', 'Request timeout')):
         return None
     match = re.search(r'```(?:[\w.+-]+)?\s*\n?(.*?)```', response, flags=re.DOTALL)
     candidate = match.group(1).strip() if match else response.strip()
@@ -718,6 +733,11 @@ def api_ai_bug_hunt(request):
     repo = Repository.objects.filter(id=repo_id, user=request.user).first()
     if not repo:
         return JsonResponse({'error': 'Repository not found.'}, status=404)
+
+    if auto_fix or create_pr:
+        profile = getattr(request.user, 'profile', None)
+        if not profile or not profile.has_full_agent_access or repo.source != 'github_owned':
+            return JsonResponse({'error': 'Write and PR creation access is denied for this repository.'}, status=403)
 
     try:
         # Get code chunks for analysis
@@ -974,6 +994,10 @@ def api_repo_file(request):
         if not repo:
             return JsonResponse({'error': 'Repository not found.'}, status=404)
 
+        profile = getattr(request.user, 'profile', None)
+        if not profile or not profile.has_full_agent_access or repo.source != 'github_owned':
+            return JsonResponse({'error': 'Write access is denied for this repository.'}, status=403)
+
         # Check if user has GitHub token
         try:
             github_token = request.user.profile.github_token
@@ -1074,6 +1098,10 @@ def api_create_pr_with_fix(request):
     repo = Repository.objects.filter(id=repo_id, user=request.user).first()
     if not repo:
         return JsonResponse({'error': 'Repository not found.'}, status=404)
+
+    profile = getattr(request.user, 'profile', None)
+    if not profile or not profile.has_full_agent_access or repo.source != 'github_owned':
+        return JsonResponse({'error': 'Write and PR creation access is denied for this repository.'}, status=403)
 
     # Check GitHub token
     try:
@@ -1259,6 +1287,10 @@ def api_ai_apply_change(request):
     repo = Repository.objects.filter(id=data.get('repo_id'), user=request.user).first()
     if not repo or not requested_change:
         return JsonResponse({'error': 'repo_id and request are required.'}, status=400)
+
+    profile = getattr(request.user, 'profile', None)
+    if not profile or not profile.has_full_agent_access or repo.source != 'github_owned':
+        return JsonResponse({'error': 'Write and PR creation access is denied for this repository.'}, status=403)
     github_token = getattr(getattr(request.user, 'profile', None), 'github_token', None)
     if not github_token:
         return JsonResponse({'error': 'Link GitHub with repository write access before creating a pull request.'}, status=403)
@@ -1319,6 +1351,10 @@ def api_ai_code_review_hf(request):
     repo = Repository.objects.filter(id=data.get('repo_id'), user=request.user).first()
     if not repo:
         return JsonResponse({'error': 'Repository not found.'}, status=404)
+
+    profile = getattr(request.user, 'profile', None)
+    if not profile or not profile.has_full_agent_access or repo.source != 'github_owned':
+        return JsonResponse({'error': 'Code review access is denied for this repository.'}, status=403)
 
     pr_number = data.get('pr_number')
     context, subject = '', 'repository code'

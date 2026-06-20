@@ -1,5 +1,5 @@
 """
-Chat agent using Hugging Face Inference API.
+Chat agent using Groq API (llama-3.1-8b-instant).
 Handles conversations, code analysis, and bug hunting.
 """
 from core.llm import generate_ai_response
@@ -10,7 +10,7 @@ from chat.static_analysis import run_static_analysis
 def generate_agent_response(conversation, user_message):
     """
     Generate AI response for chat messages.
-    Integrates vector memory search, static analysis, and Hugging Face LLM.
+    Integrates vector memory search, static analysis, and Groq LLM.
     """
     # Fetch last 10 messages for context
     history = conversation.messages.order_by('-created_at')[:10]
@@ -79,7 +79,7 @@ FORMAT YOUR RESPONSE USING MARKDOWN:
 
     prompt += f"User: {user_message}\nAssistant:"
 
-    # Call Hugging Face via shared LLM helper
+    # Call Groq via shared LLM helper
     response = generate_ai_response(prompt, max_tokens=1000)
     return response
 
