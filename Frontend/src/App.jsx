@@ -3,6 +3,7 @@ import './App.css';
 import LandingPage from './LandingPage';
 import LoginModal from './LoginModal';
 import MarkdownRenderer from './MarkdownRenderer';
+import ConfirmDialog from './ConfirmDialog';
 
 // Recursive File Tree Node component
 function FileTreeNode({ node, path, collapsedNodes, onToggle, onFileClick }) {
@@ -121,6 +122,11 @@ function App() {
   // Responsive mobile states
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Dialog states for confirmations
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConversationId, setDeleteConversationId] = useState(null);
+  const [prConfirmDialogOpen, setPrConfirmDialogOpen] = useState(false);
+
   // Textarea and messages scrolling refs
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -165,13 +171,9 @@ function App() {
           setUser(data.user);
           setAuthProvider(data.user.auth_provider);
 
-          // Handle GitHub link redirects
+          // Handle GitHub link redirects - silently handle, don't show alerts
           const params = new URLSearchParams(window.location.search);
-          if (params.get('github_linked') === 'true') {
-            alert('Successfully linked your GitHub account!');
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } else if (params.get('link_error')) {
-            alert(`Failed to link GitHub: ${params.get('link_error')}`);
+          if (params.get('github_linked') === 'true' || params.get('link_error')) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } else {
@@ -276,13 +278,16 @@ function App() {
   // Delete Conversation
   const handleDeleteConversation = async (e, convId) => {
     e.stopPropagation();
+    setDeleteConversationId(convId);
+    setDeleteDialogOpen(true);
+  };
 
-    // Show confirmation dialog
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this chat? This action cannot be undone.'
-    );
+  const confirmDeleteConversation = async () => {
+    if (!deleteConversationId) return;
 
-    if (!confirmed) return;
+    const convId = deleteConversationId;
+    setDeleteDialogOpen(false);
+    setDeleteConversationId(null);
 
     if (activeConversation && activeConversation.id === convId) {
       handleNewChat();
@@ -903,6 +908,30 @@ function App() {
         }}
       />
 
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        title="Delete chat?"
+        message="Are you sure you want to delete this chat? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        onConfirm={confirmDeleteConversation}
+        onCancel={() => setDeleteDialogOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={prConfirmDialogOpen}
+        title="Create pull request?"
+        message="Review the suggested code changes above. Proceed with creating a PR?"
+        confirmText="Create PR"
+        cancelText="Cancel"
+        onConfirm={() => {
+          setPrConfirmDialogOpen(false);
+          handleAutoFixWithPR();
+        }}
+        onCancel={() => setPrConfirmDialogOpen(false)}
+      />
+
       {!user && loadingUser ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
           <svg className="spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
@@ -1181,12 +1210,7 @@ function App() {
                           return (
                             <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               <button
-                                onClick={() => {
-                                  const response = confirm('Review the suggested code changes above. Click OK to create a PR.');
-                                  if (response) {
-                                    handleAutoFixWithPR();
-                                  }
-                                }}
+                                onClick={() => setPrConfirmDialogOpen(true)}
                                 disabled={autoFixPRLoading}
                                 style={{
                                   padding: '8px 16px',
@@ -1200,11 +1224,11 @@ function App() {
                                   opacity: autoFixPRLoading ? 0.6 : 1
                                 }}
                               >
-                                {autoFixPRLoading ? 'Creating PR...' : '📤 Create PR'}
+                                {autoFixPRLoading ? 'Creating PR...' : 'Create PR'}
                               </button>
                               <button
                                 onClick={() => {
-                                  alert('Review the code changes above carefully before creating a PR. Make sure they match your requirements.');
+                                  // Just a visual indicator - user can review the code above
                                 }}
                                 style={{
                                   padding: '8px 16px',
@@ -1217,7 +1241,7 @@ function App() {
                                   cursor: 'pointer'
                                 }}
                               >
-                                👁️ Review First
+                                Review
                               </button>
                             </div>
                           );
