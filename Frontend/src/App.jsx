@@ -276,6 +276,14 @@ function App() {
   // Delete Conversation
   const handleDeleteConversation = async (e, convId) => {
     e.stopPropagation();
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this chat? This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
     if (activeConversation && activeConversation.id === convId) {
       handleNewChat();
     }
@@ -1157,51 +1165,65 @@ function App() {
                   <div className={`message-content ${isSystemAcknowledgment ? 'system-msg' : ''}`}>
                     <MarkdownRenderer content={msg.text} />
 
-                    {/* Auto-suggest PR creation for fix suggestions or code changes */}
-                    {!isUser && connectedRepo && (msg.text.includes('FILE:') || msg.text.includes('```') || msg.text.toLowerCase().includes('change') || msg.text.toLowerCase().includes('update') || msg.text.toLowerCase().includes('add ')) && !msg.text.includes('PR created') && (
-                      <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button
-                          onClick={() => {
-                            // Show changes in editor or directly create PR
-                            const response = confirm('Review the suggested changes and click OK to create a PR, or Cancel to review manually.');
-                            if (response) {
-                              handleAutoFixWithPR();
-                            }
-                          }}
-                          disabled={autoFixPRLoading}
-                          style={{
-                            padding: '8px 16px',
-                            background: 'var(--accent)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontWeight: 500,
-                            fontSize: '13px',
-                            cursor: 'pointer',
-                            opacity: autoFixPRLoading ? 0.6 : 1
-                          }}
-                        >
-                          {autoFixPRLoading ? 'Creating PR...' : '📤 Create PR'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            // Highlight that user should review
-                            alert('Review the suggested changes above, then ask me to "create PR" to proceed.');
-                          }}
-                          style={{
-                            padding: '8px 16px',
-                            background: 'transparent',
-                            color: 'var(--accent)',
-                            border: '1px solid var(--accent)',
-                            borderRadius: '6px',
-                            fontWeight: 500,
-                            fontSize: '13px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          👁️ Review First
-                        </button>
-                      </div>
+                    {/* Show PR creation only for repo-related code changes */}
+                    {!isUser && connectedRepo && (
+                      (() => {
+                        // Only show PR buttons for actual code/repo changes
+                        const isCodeChange =
+                          msg.text.includes('FILE:') && msg.text.includes('LINE:') ||
+                          (msg.text.includes('```') && msg.text.toLowerCase().includes('update')) ||
+                          msg.text.includes('FIX:') ||
+                          (msg.text.toLowerCase().includes('change') && msg.text.includes('```')) ||
+                          (msg.text.toLowerCase().includes('add') && (msg.text.includes('.js') || msg.text.includes('.css') || msg.text.includes('.jsx') || msg.text.includes('.py'))) ||
+                          (msg.text.toLowerCase().includes('modify') && msg.text.includes('```'));
+
+                        if (isCodeChange && !msg.text.includes('PR created') && !msg.text.includes('PR Link')) {
+                          return (
+                            <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => {
+                                  const response = confirm('Review the suggested code changes above. Click OK to create a PR.');
+                                  if (response) {
+                                    handleAutoFixWithPR();
+                                  }
+                                }}
+                                disabled={autoFixPRLoading}
+                                style={{
+                                  padding: '8px 16px',
+                                  background: 'var(--accent)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontWeight: 500,
+                                  fontSize: '13px',
+                                  cursor: 'pointer',
+                                  opacity: autoFixPRLoading ? 0.6 : 1
+                                }}
+                              >
+                                {autoFixPRLoading ? 'Creating PR...' : '📤 Create PR'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  alert('Review the code changes above carefully before creating a PR. Make sure they match your requirements.');
+                                }}
+                                style={{
+                                  padding: '8px 16px',
+                                  background: 'transparent',
+                                  color: 'var(--accent)',
+                                  border: '1px solid var(--accent)',
+                                  borderRadius: '6px',
+                                  fontWeight: 500,
+                                  fontSize: '13px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                👁️ Review First
+                              </button>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()
                     )}
                   </div>
                 </div>
