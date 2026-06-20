@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import LandingPage from './LandingPage';
 import LoginModal from './LoginModal';
@@ -89,8 +89,151 @@ function App() {
 
   // Connected repository states for active conversation
   const [connectedRepo, setConnectedRepo] = useState(null);
+  const canPerformWriteActions = connectedRepo?.source === 'github_owned' && user?.has_full_agent_access === true;
   const [explicitRepoId, setExplicitRepoId] = useState(null); // Only repos explicitly connected via UI
   const [userGithubUsername, setUserGithubUsername] = useState(null);
+
+  const [applyFixFilePath, setApplyFixFilePath] = useState('');
+  const [applyFixDescription, setApplyFixDescription] = useState('');
+  const [applyFixDialogOpen, setApplyFixDialogOpen] = useState(false);
+  const [applyFixLoading, setApplyFixLoading] = useState(false);
+
+  const [reviewingMsgId, setReviewingMsgId] = useState(null);
+  const [reviewPrNumber, setReviewPrNumber] = useState('');
+  const [reviewPrLoading, setReviewPrLoading] = useState(false);
+
+  const extractFilePath = (text) => {
+    let match = text.match(/FILE:\s*([^\s\n\r]+)/i);
+    if (match) return match[1].replace(/[`'"*]/g, '').trim();
+
+    match = text.match(/`([^`\n\r]+\.(?:py|js|jsx|ts|tsx|css|html|json|sh|yml|md|rb|go|php|java))`/);
+    if (match) return match[1].trim();
+
+    return '';
+  };
+
+  // Helper function to save messages to database (for PR, bug hunt, review messages)
+  const saveToDatabaseAsync = async (conversationId, messageText) => {
+    if (!conversationId) return;
+    try {
+      await fetch(`/api/chat/conversations/${conversationId}/save-message/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageText })
+      });
+    } catch (err) {
+      console.error('Failed to save message to database:', err);
+    }
+  };
+
+  const handleApplyFixAndOpenPR = async (filePath, desc) => {
+    if (!connectedRepo || !filePath.trim() || !desc.trim()) return;
+    setApplyFixLoading(true);
+    setApplyFixDialogOpen(false);
+
+    // Add a loading message to the chat
+    const loadingMsgId = Date.now();
+    setMessages(prev => [...prev, {
+      id: loadingMsgId,
+      sender: 'assistant',
+      text: `🔧 Applying the fix to \`${filePath}\` and creating a pull request...`,
+      is_system_loading: true
+    }]);
+
+    try {
+      const response = await fetch(`/api/repos/${connectedRepo.id}/apply-fix/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_path: filePath.trim(),
+          description: desc.trim()
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to apply fix and open PR.');
+      }
+
+      // Add PR success message
+      const prMessageText = `✅ Opened pull request: [PR #${data.pr_number} - View on GitHub](${data.pr_url})\n\n**Change Summary:** ${data.summary_of_change}`;
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== loadingMsgId);
+        return [...filtered, {
+          id: Date.now(),
+          sender: 'assistant',
+          text: prMessageText,
+          created_at: new Date().toISOString()
+        }];
+      });
+      // Save to database
+      saveToDatabaseAsync(activeConversation?.id, prMessageText);
+    } catch (err) {
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== loadingMsgId);
+        return [...filtered, {
+          id: Date.now(),
+          sender: 'assistant',
+          text: `⚠️ **Apply Fix Error:** ${err.message}`
+        }];
+      });
+    } finally {
+      setApplyFixLoading(false);
+    }
+  };
+
+  const handleReviewPRSubmit = async (prNum) => {
+    if (!connectedRepo || !prNum.trim()) return;
+    setReviewPrLoading(true);
+    setReviewingMsgId(null); // Close input area
+
+    // Add a loading message to the chat
+    const loadingMsgId = Date.now();
+    setMessages(prev => [...prev, {
+      id: loadingMsgId,
+      sender: 'assistant',
+      text: `🔍 Reviewing Pull Request #${prNum}...`,
+      is_system_loading: true
+    }]);
+
+    try {
+      const response = await fetch(`/api/repos/${connectedRepo.id}/review-pr/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pr_number: parseInt(prNum, 10)
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to review pull request.');
+      }
+
+      // Add Review text message
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== loadingMsgId);
+        return [...filtered, {
+          id: Date.now(),
+          sender: 'assistant',
+          text: data.review,
+          created_at: new Date().toISOString()
+        }];
+      });
+      // Save to database
+      saveToDatabaseAsync(activeConversation?.id, data.review);
+    } catch (err) {
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== loadingMsgId);
+        return [...filtered, {
+          id: Date.now(),
+          sender: 'assistant',
+          text: `⚠️ **PR Review Error:** ${err.message}`
+        }];
+      });
+    } finally {
+      setReviewPrLoading(false);
+      setReviewPrNumber('');
+    }
+  };
 
   // Connect popover details
   const [connectPopoverOpen, setConnectPopoverOpen] = useState(false);
@@ -164,7 +307,10 @@ function App() {
       }
 
       try {
-        const response = await fetch('/api/auth/me', { headers });
+        const response = await fetch('/api/auth/me', {
+          headers,
+          credentials: 'include' // Include session cookies
+        });
         if (!response.ok) {
           throw new Error('Unauthorized');
         }
@@ -201,6 +347,13 @@ function App() {
     checkAuth();
   }, []);
 
+  // Redirect to landing page if not authenticated
+  useEffect(() => {
+    if (!loadingUser && !user) {
+      window.location.href = '/';
+    }
+  }, [loadingUser, user]);
+
   // Fetch conversation list on mount
   useEffect(() => {
     if (loadingUser || !user) return;
@@ -222,7 +375,7 @@ function App() {
   }, [loadingUser, user]);
 
   // Load selected conversation detail
-  const loadConversation = async (convId) => {
+  const loadConversation = useCallback(async (convId) => {
     setLoadingMessages(true);
     setMobileSidebarOpen(false);
     setShowSummaryBannerCard(false);
@@ -241,7 +394,41 @@ function App() {
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, []);
+
+  // Check for conversation query parameter on mount
+  useEffect(() => {
+    if (loadingUser || !user) return;
+    
+    const params = new URLSearchParams(window.location.search);
+    const conversationId = params.get('conversation');
+    if (conversationId) {
+      loadConversation(conversationId);
+    }
+  }, [loadingUser, user, loadConversation]);
+
+  // Sync activeConversation to URL query parameter
+  useEffect(() => {
+    if (loadingUser || !user) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const currentParam = params.get('conversation');
+    
+    if (activeConversation) {
+      if (currentParam !== String(activeConversation.id)) {
+        params.set('conversation', activeConversation.id);
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        window.history.pushState({ conversationId: activeConversation.id }, '', newUrl);
+      }
+    } else {
+      if (currentParam) {
+        params.delete('conversation');
+        const searchStr = params.toString();
+        const newUrl = window.location.pathname + (searchStr ? `?${searchStr}` : '');
+        window.history.pushState({}, '', newUrl);
+      }
+    }
+  }, [activeConversation, loadingUser, user]);
 
   // Fetch GitHub repos for dropdown
   useEffect(() => {
@@ -272,7 +459,7 @@ function App() {
   };
 
   // Initiate New Chat
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     setActiveConversation(null);
     setMessages([]);
     setConnectedRepo(null);
@@ -283,7 +470,22 @@ function App() {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  };
+  }, []);
+
+  // Handle browser back/forward buttons (popstate event)
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const params = new URLSearchParams(window.location.search);
+      const conversationId = params.get('conversation');
+      if (conversationId) {
+        loadConversation(conversationId);
+      } else {
+        handleNewChat();
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [loadConversation, handleNewChat]);
 
   // Delete Conversation
   const handleDeleteConversation = async (e, convId) => {
@@ -338,7 +540,8 @@ function App() {
       payload = {
         repo_url: selectedGithubRepo.repo_url,
         full_name: selectedGithubRepo.full_name,
-        default_branch: selectedGithubRepo.default_branch
+        default_branch: selectedGithubRepo.default_branch,
+        source: 'github_owned'
       };
     } else {
       if (!pastedUrl.trim()) {
@@ -346,7 +549,10 @@ function App() {
         setConnectLoading(false);
         return;
       }
-      payload = { repo_url: pastedUrl.trim() };
+      payload = { 
+        repo_url: pastedUrl.trim(),
+        source: 'public_url'
+      };
     }
 
     // Attach active conversation_id to link connected repo
@@ -435,10 +641,28 @@ function App() {
   };
 
   // Disconnect Repository (for current chat session)
-  const handleDisconnectRepo = () => {
+  const handleDisconnectRepo = async () => {
     setConnectedRepo(null);
     setExplicitRepoId(null);
     setShowSummaryBannerCard(false);
+
+    if (activeConversation) {
+      setActiveConversation(prev => prev ? { ...prev, connected_repo: null } : null);
+      setConversations(prev => prev.map(c =>
+        c.id === activeConversation.id
+          ? { ...c, repo_id: null }
+          : c
+      ));
+      try {
+        await fetch(`/api/chat/conversations/${activeConversation.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ disconnect_repo: true })
+        });
+      } catch (err) {
+        console.error('Failed to disconnect repository on backend:', err);
+      }
+    }
   };
 
   // Run Bug Hunt
@@ -755,7 +979,10 @@ function App() {
       if (rawUrl.endsWith('.git')) rawUrl = rawUrl.slice(0, -4);
       if (rawUrl.endsWith('/')) rawUrl = rawUrl.slice(0, -1);
       
-      const payload = { repo_url: rawUrl };
+      const payload = { 
+        repo_url: rawUrl,
+        source: 'public_url'
+      };
       if (activeConversation) {
         payload.conversation_id = activeConversation.id;
       }
@@ -818,37 +1045,7 @@ function App() {
       // Add AI response to conversation logs
       setMessages(prev => [...prev, data.ai_message]);
 
-      // Auto-detect PR creation requests
-      const prKeywords = ['create pr', 'create a pr', 'make pr', 'open pr', 'submit pr',
-                           'fix and pr', 'auto fix', 'fix bug', 'create pull request',
-                           'generate pr', 'ship fix', 'apply fix'];
-      const lowerQuery = userQuery.toLowerCase();
-      const shouldCreatePR = prKeywords.some(keyword => lowerQuery.includes(keyword));
-
-      if (shouldCreatePR && connectedRepo) {
-        // Auto-trigger PR creation
-        setTimeout(() => {
-          const prMsgId = Date.now() + 3;
-          setMessages(prev => [...prev, {
-            id: prMsgId,
-            sender: 'assistant',
-            text: '🔧 Creating pull request with fixes...',
-            is_system_loading: true
-          }]);
-
-          handleAutoFixWithPR().then(() => {
-            // Remove loading message on success
-            setMessages(prev => prev.filter(m => m.id !== prMsgId));
-          }).catch(err => {
-            // Show error
-            setMessages(prev => prev.map(m => m.id === prMsgId ? {
-              ...m,
-              text: `⚠️ **Couldn't create PR:** ${err.message}`,
-              is_system_loading: false
-            } : m));
-          });
-        }, 500);
-      }
+      // Auto-detect PR creation requests is handled manually via button click. No auto-actions taken.
 
       // If we created a new conversation implicitly, select it and reload history
       if (!activeConversation) {
@@ -943,6 +1140,55 @@ function App() {
         }}
         onCancel={() => setPrConfirmDialogOpen(false)}
       />
+
+      {/* 5. APPLY FIX DIALOG */}
+      {applyFixDialogOpen && (
+        <div className="modal-overlay open" style={{ zIndex: 400, display: 'flex' }}>
+          <div className="modal-card confirm-dialog" style={{ maxWidth: '500px', padding: '24px' }}>
+            <div className="confirm-dialog-header" style={{ marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Apply Fix & Open PR</h2>
+            </div>
+            <div className="confirm-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="modal-form-group">
+                <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>Target File Path</label>
+                <input
+                  type="text"
+                  className="text-input"
+                  value={applyFixFilePath}
+                  onChange={(e) => setApplyFixFilePath(e.target.value)}
+                  style={{ width: '100%', marginTop: '4px', padding: '8px 10px', fontSize: '13px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  placeholder="e.g. src/App.css"
+                  required
+                />
+              </div>
+              <div className="modal-form-group">
+                <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>Fix Description</label>
+                <textarea
+                  className="text-input"
+                  value={applyFixDescription}
+                  onChange={(e) => setApplyFixDescription(e.target.value)}
+                  style={{ width: '100%', marginTop: '4px', padding: '8px 10px', fontSize: '13px', minHeight: '80px', fontFamily: 'inherit', resize: 'vertical', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  placeholder="Describe what the fix does (sent to LLM code generator)"
+                  required
+                />
+              </div>
+            </div>
+            <div className="confirm-dialog-footer" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setApplyFixDialogOpen(false)} className="confirm-btn-cancel" style={{ padding: '8px 16px', background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => handleApplyFixAndOpenPR(applyFixFilePath, applyFixDescription)}
+                disabled={!applyFixFilePath.trim() || !applyFixDescription.trim()}
+                className="btn-emerald"
+                style={{ padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: (!applyFixFilePath.trim() || !applyFixDescription.trim()) ? 0.6 : 1 }}
+              >
+                Apply and PR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!user && loadingUser ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -1144,20 +1390,24 @@ function App() {
               
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
                 <button onClick={() => setEditorOpen(false)} style={{ padding: '8px 16px', background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: '4px', fontWeight: 500 }}>Cancel</button>
-                <button
-                  onClick={handleSaveFile}
-                  disabled={editorLoading || editorSaving}
-                  style={{ padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 500 }}
-                >
-                  {editorSaving ? 'Committing...' : 'Commit Changes'}
-                </button>
-                <button
-                  onClick={handleSaveFileWithPR}
-                  disabled={editorLoading || editorSaving}
-                  style={{ padding: '8px 16px', background: '#2D6A4F', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 500 }}
-                >
-                  {editorSaving ? 'Creating PR...' : 'Create PR'}
-                </button>
+                {canPerformWriteActions && (
+                  <>
+                    <button
+                      onClick={handleSaveFile}
+                      disabled={editorLoading || editorSaving}
+                      style={{ padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 500 }}
+                    >
+                      {editorSaving ? 'Committing...' : 'Commit Changes'}
+                    </button>
+                    <button
+                      onClick={handleSaveFileWithPR}
+                      disabled={editorLoading || editorSaving}
+                      style={{ padding: '8px 16px', background: '#2D6A4F', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 500 }}
+                    >
+                      {editorSaving ? 'Creating PR...' : 'Create PR'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1206,27 +1456,19 @@ function App() {
                   <div className={`message-content ${isSystemAcknowledgment ? 'system-msg' : ''}`}>
                     <MarkdownRenderer content={msg.text} />
 
-                    {/* Show PR creation only for user's own explicitly connected repos with code changes */}
-                    {!isUser && connectedRepo && explicitRepoId === connectedRepo.id && (() => {
-                      // Extract repo owner from full_name (format: "owner/repo")
-                      const repoOwner = connectedRepo.full_name?.split('/')[0];
-                      const isUserOwnRepo = userGithubUsername && repoOwner === userGithubUsername;
-
-                      // Only show PR buttons for actual code/repo changes in user's own repo
-                      const isCodeChange =
-                        msg.text.includes('FILE:') && msg.text.includes('LINE:') ||
-                        (msg.text.includes('```') && msg.text.toLowerCase().includes('update')) ||
-                        msg.text.includes('FIX:') ||
-                        (msg.text.toLowerCase().includes('change') && msg.text.includes('```')) ||
-                        (msg.text.toLowerCase().includes('add') && (msg.text.includes('.js') || msg.text.includes('.css') || msg.text.includes('.jsx') || msg.text.includes('.py'))) ||
-                        (msg.text.toLowerCase().includes('modify') && msg.text.includes('```'));
-
-                      if (isUserOwnRepo && isCodeChange && !msg.text.includes('PR created') && !msg.text.includes('PR Link')) {
-                        return (
-                          <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {/* Show PR and Review buttons ONLY on follow-up AI messages (not initial summary) */}
+                    {!isUser && connectedRepo && canPerformWriteActions && !msg.text.includes('I\'ve successfully connected to') && !msg.text.includes('PR created') && !msg.text.includes('PR Link') && !msg.text.includes('Opened pull request') && (() => {
+                      const parsedPath = extractFilePath(msg.text);
+                      return (
+                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <button
-                              onClick={() => setPrConfirmDialogOpen(true)}
-                              disabled={autoFixPRLoading}
+                              onClick={() => {
+                                setApplyFixFilePath(parsedPath || '');
+                                setApplyFixDescription(msg.text.substring(0, 500));
+                                setApplyFixDialogOpen(true);
+                              }}
+                              disabled={applyFixLoading}
                               style={{
                                 padding: '8px 16px',
                                 background: 'var(--accent)',
@@ -1236,14 +1478,15 @@ function App() {
                                 fontWeight: 500,
                                 fontSize: '13px',
                                 cursor: 'pointer',
-                                opacity: autoFixPRLoading ? 0.6 : 1
+                                opacity: applyFixLoading ? 0.6 : 1
                               }}
                             >
-                              {autoFixPRLoading ? 'Creating PR...' : 'Create PR'}
+                              {applyFixLoading ? 'Creating PR...' : 'Create PR'}
                             </button>
                             <button
                               onClick={() => {
-                                // Just a visual indicator - user can review the code above
+                                setReviewingMsgId(msg.id);
+                                setReviewPrNumber('');
                               }}
                               style={{
                                 padding: '8px 16px',
@@ -1256,12 +1499,64 @@ function App() {
                                 cursor: 'pointer'
                               }}
                             >
-                              Review
+                              Review PR
                             </button>
                           </div>
-                        );
-                      }
-                      return null;
+
+                          {reviewingMsgId === msg.id && (
+                            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                placeholder="Enter PR Number..."
+                                value={reviewPrNumber}
+                                onChange={(e) => setReviewPrNumber(e.target.value.replace(/\D/g, ''))}
+                                style={{
+                                  padding: '6px 10px',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: '6px',
+                                  fontSize: '13px',
+                                  width: '140px',
+                                  outline: 'none',
+                                  background: 'var(--bg)',
+                                  color: 'var(--text)'
+                                }}
+                              />
+                              <button
+                                onClick={() => handleReviewPRSubmit(reviewPrNumber)}
+                                disabled={!reviewPrNumber.trim() || reviewPrLoading}
+                                style={{
+                                  padding: '6px 12px',
+                                  background: 'var(--accent)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontWeight: 500,
+                                  fontSize: '13px',
+                                  cursor: 'pointer',
+                                  opacity: (!reviewPrNumber.trim() || reviewPrLoading) ? 0.6 : 1
+                                }}
+                              >
+                                {reviewPrLoading ? 'Reviewing...' : 'Submit'}
+                              </button>
+                              <button
+                                onClick={() => setReviewingMsgId(null)}
+                                style={{
+                                  padding: '6px 12px',
+                                  background: 'transparent',
+                                  color: 'var(--text-muted)',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: '6px',
+                                  fontWeight: 500,
+                                  fontSize: '13px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
                     })()}
                   </div>
                 </div>

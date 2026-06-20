@@ -157,14 +157,67 @@ def api_chat_conversation_detail(request, conversation_id):
                     'file_tree': conversation.repo.file_tree,
                     'file_count': conversation.repo.file_count,
                     'total_size': conversation.repo.total_size,
+                    'source': conversation.repo.source,
                     'connected_at': conversation.repo.connected_at.isoformat()
                 } if conversation.repo else None
             },
             'messages': msgs_data
         })
         
+    elif request.method == 'PATCH':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+            
+        if data.get('disconnect_repo') is True or ('repo_id' in data and data['repo_id'] is None):
+            conversation.repo = None
+            conversation.save()
+            return JsonResponse({'success': True, 'message': 'Repository disconnected from conversation.'})
+        
+        return JsonResponse({'error': 'Invalid request parameters.'}, status=400)
+        
     elif request.method == 'DELETE':
         conversation.delete()
         return JsonResponse({'message': 'Conversation deleted successfully.'})
-        
+
     return JsonResponse({'error': 'Method not allowed.'}, status=405)
+
+@csrf_exempt
+def api_save_message(request, conversation_id):
+    """Save a message to a conversation (for frontend-generated messages like PR results)."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
+
+    try:
+        conversation = Conversation.objects.get(id=conversation_id, user=request.user)
+    except Conversation.DoesNotExist:
+        return JsonResponse({'error': 'Conversation not found.'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+
+    message_text = data.get('message', '').strip()
+    if not message_text:
+        return JsonResponse({'error': 'Message cannot be empty.'}, status=400)
+
+    # Save message to database
+    msg = Message.objects.create(
+        conversation=conversation,
+        role='assistant',
+        content=message_text
+    )
+
+    return JsonResponse({
+        'message': {
+            'id': msg.id,
+            'sender': msg.role,
+            'text': msg.content,
+            'created_at': msg.created_at.isoformat()
+        }
+    }, status=201)
