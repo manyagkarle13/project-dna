@@ -90,6 +90,7 @@ function App() {
   // Connected repository states for active conversation
   const [connectedRepo, setConnectedRepo] = useState(null);
   const [explicitRepoId, setExplicitRepoId] = useState(null); // Only repos explicitly connected via UI
+  const [userGithubUsername, setUserGithubUsername] = useState(null);
 
   // Connect popover details
   const [connectPopoverOpen, setConnectPopoverOpen] = useState(false);
@@ -171,6 +172,11 @@ function App() {
         if (data.user) {
           setUser(data.user);
           setAuthProvider(data.user.auth_provider);
+
+          // Extract GitHub username from user data if available
+          if (data.user.github_username) {
+            setUserGithubUsername(data.user.github_username);
+          }
 
           // Handle GitHub link redirects - silently handle, don't show alerts
           const params = new URLSearchParams(window.location.search);
@@ -1200,61 +1206,63 @@ function App() {
                   <div className={`message-content ${isSystemAcknowledgment ? 'system-msg' : ''}`}>
                     <MarkdownRenderer content={msg.text} />
 
-                    {/* Show PR creation only for explicitly connected repos with code changes */}
-                    {!isUser && connectedRepo && explicitRepoId === connectedRepo.id && (
-                      (() => {
-                        // Only show PR buttons for actual code/repo changes
-                        const isCodeChange =
-                          msg.text.includes('FILE:') && msg.text.includes('LINE:') ||
-                          (msg.text.includes('```') && msg.text.toLowerCase().includes('update')) ||
-                          msg.text.includes('FIX:') ||
-                          (msg.text.toLowerCase().includes('change') && msg.text.includes('```')) ||
-                          (msg.text.toLowerCase().includes('add') && (msg.text.includes('.js') || msg.text.includes('.css') || msg.text.includes('.jsx') || msg.text.includes('.py'))) ||
-                          (msg.text.toLowerCase().includes('modify') && msg.text.includes('```'));
+                    {/* Show PR creation only for user's own explicitly connected repos with code changes */}
+                    {!isUser && connectedRepo && explicitRepoId === connectedRepo.id && (() => {
+                      // Extract repo owner from full_name (format: "owner/repo")
+                      const repoOwner = connectedRepo.full_name?.split('/')[0];
+                      const isUserOwnRepo = userGithubUsername && repoOwner === userGithubUsername;
 
-                        if (isCodeChange && !msg.text.includes('PR created') && !msg.text.includes('PR Link')) {
-                          return (
-                            <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <button
-                                onClick={() => setPrConfirmDialogOpen(true)}
-                                disabled={autoFixPRLoading}
-                                style={{
-                                  padding: '8px 16px',
-                                  background: 'var(--accent)',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  fontWeight: 500,
-                                  fontSize: '13px',
-                                  cursor: 'pointer',
-                                  opacity: autoFixPRLoading ? 0.6 : 1
-                                }}
-                              >
-                                {autoFixPRLoading ? 'Creating PR...' : 'Create PR'}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  // Just a visual indicator - user can review the code above
-                                }}
-                                style={{
-                                  padding: '8px 16px',
-                                  background: 'transparent',
-                                  color: 'var(--accent)',
-                                  border: '1px solid var(--accent)',
-                                  borderRadius: '6px',
-                                  fontWeight: 500,
-                                  fontSize: '13px',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Review
-                              </button>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()
-                    )}
+                      // Only show PR buttons for actual code/repo changes in user's own repo
+                      const isCodeChange =
+                        msg.text.includes('FILE:') && msg.text.includes('LINE:') ||
+                        (msg.text.includes('```') && msg.text.toLowerCase().includes('update')) ||
+                        msg.text.includes('FIX:') ||
+                        (msg.text.toLowerCase().includes('change') && msg.text.includes('```')) ||
+                        (msg.text.toLowerCase().includes('add') && (msg.text.includes('.js') || msg.text.includes('.css') || msg.text.includes('.jsx') || msg.text.includes('.py'))) ||
+                        (msg.text.toLowerCase().includes('modify') && msg.text.includes('```'));
+
+                      if (isUserOwnRepo && isCodeChange && !msg.text.includes('PR created') && !msg.text.includes('PR Link')) {
+                        return (
+                          <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => setPrConfirmDialogOpen(true)}
+                              disabled={autoFixPRLoading}
+                              style={{
+                                padding: '8px 16px',
+                                background: 'var(--accent)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontWeight: 500,
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                opacity: autoFixPRLoading ? 0.6 : 1
+                              }}
+                            >
+                              {autoFixPRLoading ? 'Creating PR...' : 'Create PR'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Just a visual indicator - user can review the code above
+                              }}
+                              style={{
+                                padding: '8px 16px',
+                                background: 'transparent',
+                                color: 'var(--accent)',
+                                border: '1px solid var(--accent)',
+                                borderRadius: '6px',
+                                fontWeight: 500,
+                                fontSize: '13px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Review
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               );
