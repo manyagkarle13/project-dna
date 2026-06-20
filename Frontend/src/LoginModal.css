@@ -168,6 +168,26 @@
   background: var(--border);
 }
 
+.login-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text);
+  transition: all 0.15s;
+}
+
+.login-google-btn:hover {
+  background: var(--border);
+}
+
 .login-toggle {
   text-align: center;
   font-size: 13px;
