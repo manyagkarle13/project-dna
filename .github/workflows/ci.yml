@@ -90,13 +90,15 @@ jobs:
           pip install bandit
           bandit -r Backend --skip B101,B601 || true
 
-#       - name: OWASP Dependency Check
-#         uses: jeremylong/DependencyCheck_Action@main
-#         with:
-#           project: 'Project-DNA'
-#           path: '.'
-#           format: 'JSON'
-#         continue-on-error: true
+      - name: Run Trivy vulnerability scanner (Filesystem scan)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
 
   build-docker:
     name: Build Docker Images
