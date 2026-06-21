@@ -1,3 +1,3 @@
-/api/*  https://<YOUR_RENDER_BACKEND_URL>/api/:splat  200
-/auth/* https://<YOUR_RENDER_BACKEND_URL>/auth/:splat 200
+/api/*  https://project-dna.onrender.com/api/:splat  200
+/auth/* https://project-dna.onrender.com/auth/:splat 200
 /*      /index.html                                   200
