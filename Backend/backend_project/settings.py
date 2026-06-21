@@ -28,7 +28,7 @@ load_dotenv(override=True)
 if os.environ.get('HUGGINGFACE_API_KEY') and not os.environ.get('HF_TOKEN'):
     os.environ['HF_TOKEN'] = os.environ['HUGGINGFACE_API_KEY']
 
-SECRET_KEY = os.environ.get('SESSION_SECRET', 'django-insecure-development-only-change-me')
+SECRET_KEY = os.environ.get('SECRET_KEY', os.environ.get('SESSION_SECRET', 'django-insecure-development-only-change-me'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
