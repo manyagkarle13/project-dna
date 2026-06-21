@@ -33,17 +33,43 @@ def generate_agent_response(conversation, user_message):
             bug_keywords = ["bug", "error", "fix", "broken", "issue", "crash", "fails", "exception", "vulnerability", "security"]
             check_bugs = any(kw in user_message.lower() for kw in bug_keywords)
 
+            # Limit total characters added by chunks to prevent exceeding rate limits (max ~12,000 chars for chunks)
+            MAX_CHUNKS_CHARS = 12000
+            chunks_added_chars = 0
+
             for chunk in chunks:
-                prompt += f"--- {chunk.file_path} (Chunk {chunk.chunk_index}) ---\n{chunk.content}\n\n"
+                chunk_header = f"--- {chunk.file_path} (Chunk {chunk.chunk_index}) ---\n"
+                chunk_body = chunk.content
+                
+                # Check if we have budget left
+                if chunks_added_chars >= MAX_CHUNKS_CHARS:
+                    break
+                    
+                # If adding the whole chunk exceeds the budget, truncate it
+                if chunks_added_chars + len(chunk_header) + len(chunk_body) > MAX_CHUNKS_CHARS:
+                    allowed_body_len = MAX_CHUNKS_CHARS - chunks_added_chars - len(chunk_header) - 50
+                    if allowed_body_len > 100:
+                        chunk_body = chunk_body[:allowed_body_len] + "\n... [TRUNCATED DUE TO SIZE LIMIT] ..."
+                    else:
+                        break
+                
+                chunk_text = f"{chunk_header}{chunk_body}\n\n"
+                prompt += chunk_text
+                chunks_added_chars += len(chunk_text)
 
                 # Run static analysis on relevant chunks
                 if check_bugs:
                     findings = run_static_analysis(chunk.file_path, chunk.content)
                     if findings:
-                        prompt += f"--- Static Analysis for {chunk.file_path} ---\n"
+                        findings_text = f"--- Static Analysis for {chunk.file_path} ---\n"
                         for finding in findings:
-                            prompt += f"Line {finding['line']}: [{finding['severity'].upper()}] {finding['message']}\n"
-                        prompt += "\n"
+                            findings_text += f"Line {finding['line']}: [{finding['severity'].upper()}] {finding['message']}\n"
+                        findings_text += "\n"
+                        
+                        # Only add if it fits the budget
+                        if chunks_added_chars + len(findings_text) <= MAX_CHUNKS_CHARS:
+                            prompt += findings_text
+                            chunks_added_chars += len(findings_text)
 
             prompt += """You are an expert code analyst. Base your response ONLY on the provided code chunks and project summary.
 If the user asks about code not shown, say 'I don't have that code in my analysis.'

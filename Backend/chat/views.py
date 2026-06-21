@@ -46,7 +46,10 @@ def api_chat_send(request):
     Message.objects.create(conversation=conversation, role='user', content=message_text)
     
     # Generate agent response
-    agent_text = generate_agent_response(conversation, message_text)
+    try:
+        agent_text = generate_agent_response(conversation, message_text)
+    except Exception as exc:
+        return JsonResponse({'error': f"AI service error: {str(exc)}"}, status=500)
     
     # Save agent message
     assistant_msg = Message.objects.create(conversation=conversation, role='assistant', content=agent_text)
@@ -54,7 +57,8 @@ def api_chat_send(request):
     # Update title if it was New Chat and we have a repo
     if conversation.title == "New Chat" and conversation.repo:
         conversation.title = f"Chat: {conversation.repo.full_name.split('/')[-1]}"
-        conversation.save()
+    
+    conversation.save()  # Always save to update the updated_at timestamp
 
     return JsonResponse({
         'conversation_id': conversation.id,
@@ -212,6 +216,8 @@ def api_save_message(request, conversation_id):
         role='assistant',
         content=message_text
     )
+
+    conversation.save() # Update conversation updated_at timestamp
 
     return JsonResponse({
         'message': {

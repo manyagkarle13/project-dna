@@ -1085,8 +1085,8 @@ function App() {
 
   // Group conversations by date labels (with proper timezone handling)
   const groupConversations = (list) => {
-    // Simply return all conversations sorted by most recent first
-    return list.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    // Copy the list to prevent in-place state mutation issues in React
+    return [...list].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
   };
 
   const conversationsGrouped = groupConversations(conversations);

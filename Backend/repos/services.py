@@ -233,7 +233,7 @@ File Tree:
 {json.dumps(file_tree, indent=2)[:5000]}
 
 Sample Files:
-{sample_files[:15000]}
+{sample_files[:10000]}
 
 Summary:"""
 
@@ -297,3 +297,49 @@ def process_new_repo(repo_url):
     except Exception as e:
         shutil.rmtree(repo_path, ignore_errors=True)
         raise e
+
+
+def resolve_repo_file_path(repo, target_path):
+    """
+    Given a target_path, checks if it is a valid path in the repo's file tree.
+    If not, recursively searches the file tree to find a matching path that ends with target_path.
+    Returns the resolved path, or the original target_path if no match is found.
+    """
+    if not target_path or not repo or not repo.file_tree:
+        return target_path
+
+    # Normalize target path
+    target = target_path.replace('\\', '/').lower().strip('/')
+    
+    # Check if target_path exists directly in the file tree (as a flat file or nested path)
+    def check_direct_path(tree, parts):
+        current = tree
+        for part in parts:
+            if not isinstance(current, dict) or part not in current:
+                return False
+            current = current[part]
+        return True
+
+    # If it directly exists, use it
+    parts = [p for p in target_path.replace('\\', '/').split('/') if p]
+    if check_direct_path(repo.file_tree, parts):
+        return target_path
+
+    # Otherwise, search recursively
+    def recurse(node, current_path=""):
+        if node is None:
+            normalized_current = current_path.replace('\\', '/').lower()
+            if normalized_current.endswith(target):
+                return current_path
+            return None
+        elif isinstance(node, dict):
+            for name, child in node.items():
+                next_path = f"{current_path}/{name}" if current_path else name
+                result = recurse(child, next_path)
+                if result:
+                    return result
+        return None
+
+    resolved = recurse(repo.file_tree)
+    return resolved if resolved else target_path
+

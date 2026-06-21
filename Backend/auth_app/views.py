@@ -750,8 +750,26 @@ def api_ai_bug_hunt(request):
                 'message': 'No code chunks found for analysis'
             })
 
-        # Prepare code for analysis
-        code_to_analyze = "\n\n".join([f"FILE: {c.file_path}\n{c.content}" for c in chunks[:5]])
+        # Prepare code for analysis (with safe limit on total characters to avoid Groq rate limit)
+        MAX_BUG_HUNT_CHARS = 12000
+        bug_hunt_chars = 0
+        code_chunks_list = []
+        for c in chunks[:5]:
+            chunk_header = f"FILE: {c.file_path}\n"
+            chunk_body = c.content
+            if bug_hunt_chars >= MAX_BUG_HUNT_CHARS:
+                break
+            if bug_hunt_chars + len(chunk_header) + len(chunk_body) > MAX_BUG_HUNT_CHARS:
+                allowed_body_len = MAX_BUG_HUNT_CHARS - bug_hunt_chars - len(chunk_header) - 50
+                if allowed_body_len > 100:
+                    chunk_body = chunk_body[:allowed_body_len] + "\n... [TRUNCATED] ..."
+                else:
+                    break
+            chunk_text = f"{chunk_header}{chunk_body}"
+            code_chunks_list.append(chunk_text)
+            bug_hunt_chars += len(chunk_text)
+            
+        code_to_analyze = "\n\n".join(code_chunks_list)
 
         prompt = f"""Analyze the following code for bugs, vulnerabilities, and issues:
 
@@ -953,6 +971,9 @@ def api_repo_file(request):
         if not repo:
             return JsonResponse({'error': 'Repository not found.'}, status=404)
 
+        from repos.services import resolve_repo_file_path
+        file_path = resolve_repo_file_path(repo, file_path)
+
         # Try fetching from GitHub raw content
         try:
             branch = repo.default_branch or 'main'
@@ -963,7 +984,7 @@ def api_repo_file(request):
                 content = res.text
             else:
                 return JsonResponse({
-                    'error': 'Could not fetch this file from the repository. No mock content was returned.'
+                    'error': f'Could not fetch this file from the repository. Tried URL: {raw_url}'
                 }, status=404)
 
             return JsonResponse({
@@ -993,6 +1014,9 @@ def api_repo_file(request):
         repo = Repository.objects.filter(id=repo_id, user=request.user).first()
         if not repo:
             return JsonResponse({'error': 'Repository not found.'}, status=404)
+
+        from repos.services import resolve_repo_file_path
+        file_path = resolve_repo_file_path(repo, file_path)
 
         profile = getattr(request.user, 'profile', None)
         if not profile or not profile.has_full_agent_access or repo.source != 'github_owned':
@@ -1367,12 +1391,31 @@ def api_ai_code_review_hf(request):
             open_prs = github.list_open_prs(owner, repo_name)
             pr_number = open_prs[0].get('number') if open_prs else None
         if pr_number:
-            context = github.get_pull_request_diff(owner, repo_name, pr_number)[:30000]
+            context = github.get_pull_request_diff(owner, repo_name, pr_number)[:12000]
             subject = f'pull request #{pr_number}'
 
     if not context:
         chunks = search_relevant_chunks(repo, 'code quality bugs security performance', top_k=8)
-        context = '\n\n'.join(f'FILE: {chunk.file_path}\n{chunk.content}' for chunk in chunks)
+        
+        # Build context within safety limit of 12,000 characters
+        MAX_REVIEW_CHARS = 12000
+        review_chars = 0
+        review_chunks = []
+        for chunk in chunks:
+            chunk_header = f"FILE: {chunk.file_path}\n"
+            chunk_body = chunk.content
+            if review_chars >= MAX_REVIEW_CHARS:
+                break
+            if review_chars + len(chunk_header) + len(chunk_body) > MAX_REVIEW_CHARS:
+                allowed_body_len = MAX_REVIEW_CHARS - review_chars - len(chunk_header) - 50
+                if allowed_body_len > 100:
+                    chunk_body = chunk_body[:allowed_body_len] + "\n... [TRUNCATED] ..."
+                else:
+                    break
+            chunk_text = f"{chunk_header}{chunk_body}"
+            review_chunks.append(chunk_text)
+            review_chars += len(chunk_text)
+        context = '\n\n'.join(review_chunks)
     if not context:
         return JsonResponse({'error': 'No indexed code is available to review.'}, status=409)
 

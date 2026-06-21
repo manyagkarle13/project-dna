@@ -114,7 +114,7 @@ def api_review_pull_request(request, repo_id):
 4. Best practice violations
 
 PR Diff:
-{diff_content[:30000]}
+{diff_content[:12000]}
 
 FORMAT YOUR RESPONSE USING MARKDOWN:
 - Use proper line breaks between sections
@@ -173,6 +173,9 @@ def api_apply_fix_and_open_pr(request, repo_id):
 
     if not file_path or not description:
         return JsonResponse({'error': 'file_path and description are required'}, status=400)
+
+    from repos.services import resolve_repo_file_path
+    file_path = resolve_repo_file_path(repo, file_path)
 
     try:
         owner, repo_name = repo.full_name.split('/')
