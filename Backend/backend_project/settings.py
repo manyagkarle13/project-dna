@@ -88,8 +88,23 @@ WSGI_APPLICATION = 'backend_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+from urllib.parse import urlparse
+
 if os.environ.get('DB_ENGINE') == 'django.db.backends.sqlite3':
     DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}
+elif os.environ.get('DATABASE_URL'):
+    # Automatically parse DATABASE_URL (common on Render / Heroku / Railway)
+    url = urlparse(os.environ.get('DATABASE_URL'))
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': url.path[1:],
+            'USER': url.username,
+            'PASSWORD': url.password,
+            'HOST': url.hostname,
+            'PORT': url.port or 5432,
+        }
+    }
 else:
     DATABASES = {
         'default': {
