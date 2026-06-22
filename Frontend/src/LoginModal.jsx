@@ -44,12 +44,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
   const handleGitHubLogin = () => {
     // Redirect to backend GitHub OAuth
-    window.location.href = '/auth/github';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+    window.location.href = `${apiBaseUrl}/auth/github`;
   };
 
   const handleGoogleLogin = () => {
     // Redirect to backend Google OAuth
-    window.location.href = '/auth/google';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+    window.location.href = `${apiBaseUrl}/auth/google`;
   };
 
   if (!isOpen) return null;
