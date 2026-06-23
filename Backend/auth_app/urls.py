@@ -17,6 +17,10 @@ urlpatterns = [
     path('auth/github/callback', views.auth_github_callback, name='auth_github_callback'),
     path('api/auth/google/login/', views.auth_google, name='api_auth_google_login'),
     path('api/auth/github/login/', views.auth_github, name='api_auth_github_login'),
+    path('api/auth/google/callback/', views.auth_google_callback, name='api_auth_google_callback'),
+    path('api/auth/github/callback/', views.auth_github_callback, name='api_auth_github_callback'),
+    path('api/auth/google/callback', views.auth_google_callback, name='api_auth_google_callback_no_slash'),
+    path('api/auth/github/callback', views.auth_github_callback, name='api_auth_github_callback_no_slash'),
     path('api/auth/github/link', views.auth_github_link, name='auth_github_link'),
     path('api/auth/github/link/', views.auth_github_link, name='api_auth_github_link_slash'),
 

@@ -169,3 +169,7 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+
+from decouple import config
+GITHUB_REDIRECT_URI = config('GITHUB_REDIRECT_URI', default='http://localhost:8000/auth/github/callback')
+GOOGLE_REDIRECT_URI = config('GOOGLE_REDIRECT_URI', default='http://localhost:8000/auth/google/callback')

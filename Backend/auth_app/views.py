@@ -12,6 +12,7 @@ from auth_app.models import UserProfile, Repository
 from chat.models import Conversation, Message
 from core.llm import generate_ai_response
 from vectormemory.services import search_relevant_chunks
+from django.conf import settings
 
 PR_WRITE_FEATURE_MESSAGE = (
     "Repository write and pull-request creation are not enabled in this build. "
@@ -178,8 +179,7 @@ def auth_google(request):
         client_id = os.environ.get('GOOGLE_CLIENT_ID')
         print("DEBUG: GOOGLE_CLIENT_ID in views is:", client_id)
         # Always use backend port for callback (Vite proxy uses frontend port as host)
-        backend_url = os.environ.get('BACKEND_URL', 'http://localhost:8000')
-        callback_uri = f"{backend_url}/auth/google/callback"
+        callback_uri = settings.GOOGLE_REDIRECT_URI
         google_url = (
             "https://accounts.google.com/o/oauth2/v2/auth?"
             f"client_id={client_id}&"
@@ -206,8 +206,7 @@ def auth_google_callback(request):
         client_id = os.environ.get('GOOGLE_CLIENT_ID')
         client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
         # Must match the redirect_uri used in the initial auth request
-        backend_url = os.environ.get('BACKEND_URL', 'http://localhost:8000')
-        callback_uri = f"{backend_url}/auth/google/callback"
+        callback_uri = settings.GOOGLE_REDIRECT_URI
         
         # 1. Exchange authorization code for access token
         token_res = requests.post(
@@ -254,8 +253,7 @@ def auth_github(request):
     if has_github_creds():
         client_id = os.environ.get('GITHUB_CLIENT_ID')
         # Always use backend port for callback (Vite proxy uses frontend port as host)
-        backend_url = os.environ.get('BACKEND_URL', 'http://localhost:8000')
-        callback_uri = f"{backend_url}/auth/github/callback"
+        callback_uri = settings.GITHUB_REDIRECT_URI
         github_url = (
             "https://github.com/login/oauth/authorize?"
             f"client_id={client_id}&"
@@ -277,8 +275,7 @@ def auth_github_link(request):
 
     if has_github_creds():
         client_id = os.environ.get('GITHUB_CLIENT_ID')
-        backend_url = os.environ.get('BACKEND_URL', 'http://localhost:8000')
-        callback_uri = f"{backend_url}/auth/github/callback"
+        callback_uri = settings.GITHUB_REDIRECT_URI
         # Attach state=link to differentiate from login
         github_url = (
             "https://github.com/login/oauth/authorize?"
