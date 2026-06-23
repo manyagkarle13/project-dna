@@ -360,10 +360,6 @@ See DEPLOYMENT.md for more troubleshooting.
 - **Gemini API**: https://ai.google.dev/
 - **Groq API**: https://groq.com/
 
-## License
-
-Refer to LICENSE file.
-
 ## Support
 
 - Check DEPLOYMENT.md for detailed setup.
