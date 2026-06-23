@@ -13,6 +13,7 @@ from chat.models import Conversation, Message
 from core.llm import generate_ai_response
 from vectormemory.services import search_relevant_chunks
 from django.conf import settings
+from auth_app.auth_tokens import generate_auth_token, consume_auth_token
 
 PR_WRITE_FEATURE_MESSAGE = (
     "Repository write and pull-request creation are not enabled in this build. "
@@ -129,6 +130,58 @@ def api_logout(request):
     django_logout(request)
     return JsonResponse({'message': 'Logout successful'})
 
+# Token Login – exchange a one-time OAuth token for a session
+@csrf_exempt
+def api_token_login(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
+
+    token = data.get('token', '').strip()
+    if not token:
+        return JsonResponse({'error': 'Token is required.'}, status=400)
+
+    user_id = consume_auth_token(token)
+    if user_id is None:
+        return JsonResponse({'error': 'Invalid or expired token.'}, status=401)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found.'}, status=404)
+
+    django_login(request, user)
+
+    # Build response identical to api_me
+    provider = 'local'
+    github_username = None
+    try:
+        profile = user.profile
+        if profile.github_id:
+            provider = 'github'
+            github_username = profile.github_username
+        elif profile.google_id:
+            provider = 'google'
+    except UserProfile.DoesNotExist:
+        pass
+
+    return JsonResponse({
+        'user': {
+            'id': user.id,
+            'name': user.first_name or user.username,
+            'email': user.email,
+            'auth_provider': provider,
+            'github_username': github_username,
+            'github_is_linked': bool(getattr(user, 'profile', None) and user.profile.github_token),
+            'has_full_agent_access': bool(getattr(user, 'profile', None) and user.profile.has_full_agent_access)
+        },
+        'message': 'Login successful!'
+    })
+
 # Get Current User Profile (Me)
 def api_me(request):
     if request.user.is_authenticated:
@@ -243,7 +296,9 @@ def auth_google_callback(request):
         # 4. Login user session
         django_login(request, user)
 
-        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}")
+        # Generate one-time token for cross-domain handoff
+        auth_token = generate_auth_token(user.id)
+        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?auth_token={auth_token}")
     except Exception as e:
         print("Google OAuth Exception:", e)
         return HttpResponseRedirect(f"{frontend_url}?auth_error=google_server_exception")
@@ -376,7 +431,9 @@ def auth_github_callback(request):
             # 5. Login user session
             django_login(request, user)
 
-            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}")
+            # Generate one-time token for cross-domain handoff
+            auth_token = generate_auth_token(user.id)
+            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?auth_token={auth_token}")
     except Exception as e:
         print("GitHub OAuth Exception:", e)
         error_type = "github_link_exception" if is_linking else "github_server_exception"

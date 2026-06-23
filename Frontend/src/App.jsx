@@ -300,6 +300,45 @@ function App() {
   // Fetch user session on page mount
   useEffect(() => {
     async function checkAuth() {
+      // -----------------------------------------------------------
+      // Cross-domain OAuth token handoff:
+      // After OAuth, the backend redirects here with ?auth_token=xxx
+      // Exchange it for a real session first.
+      // -----------------------------------------------------------
+      const params = new URLSearchParams(window.location.search);
+      const authToken = params.get('auth_token');
+
+      if (authToken) {
+        // Clean the token from the URL immediately
+        window.history.replaceState({}, document.title, window.location.pathname);
+        try {
+          const tokenRes = await fetch('/api/auth/token-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ token: authToken }),
+          });
+          if (tokenRes.ok) {
+            const tokenData = await tokenRes.json();
+            if (tokenData.user) {
+              setUser(tokenData.user);
+              setAuthProvider(tokenData.user.auth_provider);
+              if (tokenData.user.github_username) {
+                setUserGithubUsername(tokenData.user.github_username);
+              }
+              setLoadingUser(false);
+              return; // Done – skip the /api/auth/me fallback
+            }
+          }
+        } catch (tokenErr) {
+          console.error('Token login failed, falling back to session check:', tokenErr);
+        }
+      }
+
+      // -----------------------------------------------------------
+      // Normal session-based auth check (for email/password logins
+      // and already-authenticated users with valid cookies)
+      // -----------------------------------------------------------
       const token = localStorage.getItem('token');
       const headers = { 'Content-Type': 'application/json' };
       if (token) {
@@ -325,8 +364,8 @@ function App() {
           }
 
           // Handle GitHub link redirects - silently handle, don't show alerts
-          const params = new URLSearchParams(window.location.search);
-          if (params.get('github_linked') === 'true' || params.get('link_error')) {
+          const linkParams = new URLSearchParams(window.location.search);
+          if (linkParams.get('github_linked') === 'true' || linkParams.get('link_error')) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } else {
@@ -335,8 +374,8 @@ function App() {
       } catch (err) {
         console.error('Auth check error:', err);
         // Check for login modal trigger
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('open_signin') === 'true') {
+        const fallbackParams = new URLSearchParams(window.location.search);
+        if (fallbackParams.get('open_signin') === 'true') {
           setLoginModalOpen(true);
           window.history.replaceState({}, document.title, window.location.pathname);
         }

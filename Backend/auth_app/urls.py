@@ -8,6 +8,8 @@ urlpatterns = [
     path('api/auth/login', views.api_login, name='api_login'),
     path('api/auth/logout', views.api_logout, name='api_logout'),
     path('api/auth/me', views.api_me, name='api_me'),
+    path('api/auth/token-login', views.api_token_login, name='api_token_login'),
+    path('api/auth/token-login/', views.api_token_login, name='api_token_login_slash'),
     path('api/health', views.api_health, name='api_health'),
 
     # OAuth Routes

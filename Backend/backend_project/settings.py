@@ -157,16 +157,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/'),
 ]
+# Also allow Netlify preview/deploy URLs if FRONTEND_URL differs
+_netlify_url = 'https://projectdna-aicoding-agent.netlify.app'
+if _netlify_url not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(_netlify_url)
+
 CORS_ALLOW_CREDENTIALS = True
 
-SESSION_COOKIE_SAMESITE = 'Lax'
+# Cross-domain cookie settings: SameSite=None + Secure required for
+# cookies to be sent in cross-origin requests (Netlify frontend → Render backend)
+SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/'),
 ]
+if _netlify_url not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(_netlify_url)
 
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
