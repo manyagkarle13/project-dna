@@ -1712,7 +1712,7 @@ function App() {
                           type="button" 
                           className="btn-secondary-full" 
                           onClick={() => {
-                            const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+                            const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
                             window.location.href = `${apiBaseUrl}/api/auth/github/link/?token=${localStorage.getItem('token')}`;
                           }}
                         >

@@ -44,14 +44,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
   const handleGitHubLogin = () => {
     // Redirect to backend GitHub OAuth
-    const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-    window.location.href = `${apiBaseUrl}/auth/github`;
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+    window.location.href = `${apiBaseUrl}/api/auth/github/login/`;
   };
 
   const handleGoogleLogin = () => {
     // Redirect to backend Google OAuth
-    const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-    window.location.href = `${apiBaseUrl}/auth/google`;
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+    window.location.href = `${apiBaseUrl}/api/auth/google/login/`;
   };
 
   if (!isOpen) return null;

@@ -15,8 +15,10 @@ urlpatterns = [
     path('auth/google/callback', views.auth_google_callback, name='auth_google_callback'),
     path('auth/github', views.auth_github, name='auth_github'),
     path('auth/github/callback', views.auth_github_callback, name='auth_github_callback'),
+    path('api/auth/google/login/', views.auth_google, name='api_auth_google_login'),
+    path('api/auth/github/login/', views.auth_github, name='api_auth_github_login'),
     path('api/auth/github/link', views.auth_github_link, name='auth_github_link'),
-    path('api/auth/github/link/', views.auth_github_link, name='auth_github_link_slash'),
+    path('api/auth/github/link/', views.auth_github_link, name='api_auth_github_link_slash'),
 
     # Mock Auth Sandbox
     path('auth/mock', views.auth_mock, name='auth_mock'),
