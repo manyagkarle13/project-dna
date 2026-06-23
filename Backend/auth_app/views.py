@@ -130,6 +130,25 @@ def api_logout(request):
     django_logout(request)
     return JsonResponse({'message': 'Logout successful'})
 
+def promote_user_owned_repos(user):
+    try:
+        profile = user.profile
+        if profile.github_token and profile.github_username:
+            # Grant agent access if not set
+            if not profile.has_full_agent_access:
+                profile.has_full_agent_access = True
+                profile.save()
+            
+            # Auto-promote user's repositories from 'public_url' to 'github_owned'
+            repos = Repository.objects.filter(user=user, source='public_url')
+            prefix = profile.github_username.lower() + '/'
+            for repo in repos:
+                if repo.full_name.lower().startswith(prefix):
+                    repo.source = 'github_owned'
+                    repo.save()
+    except Exception:
+        pass
+
 # Token Login – exchange a one-time OAuth token for a session
 @csrf_exempt
 def api_token_login(request):
@@ -155,6 +174,9 @@ def api_token_login(request):
         return JsonResponse({'error': 'User not found.'}, status=404)
 
     django_login(request, user)
+
+    # Automatically heal user permissions and owned repository sources
+    promote_user_owned_repos(user)
 
     # Build response identical to api_me
     provider = 'local'
@@ -185,6 +207,9 @@ def api_token_login(request):
 # Get Current User Profile (Me)
 def api_me(request):
     if request.user.is_authenticated:
+        # Automatically heal user permissions and owned repository sources
+        promote_user_owned_repos(request.user)
+
         # Determine provider
         provider = 'local'
         github_username = None
@@ -414,7 +439,9 @@ def auth_github_callback(request):
             profile.github_id = github_id
             profile.github_username = user_res.get('login')
             profile.github_token = access_token
+            profile.has_full_agent_access = True
             profile.save()
+            promote_user_owned_repos(user)
             return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?github_linked=true")
         else:
             user = find_or_create_oauth_user(provider='github', provider_id=github_id, name=name, email=email)
@@ -424,7 +451,9 @@ def auth_github_callback(request):
                 profile = user.profile
                 profile.github_username = user_res.get('login')
                 profile.github_token = access_token
+                profile.has_full_agent_access = True
                 profile.save()
+                promote_user_owned_repos(user)
             except Exception as e:
                 print("Failed to save github token to profile:", e)
 
@@ -636,8 +665,14 @@ def api_repos_connect(request):
                 Message.objects.create(conversation=conv, role='assistant', content=ai_text)
             
     source = data.get('source', 'public_url')
+    # Auto-detect if repository belongs to the user
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.github_token and profile.github_username:
+        if full_name.lower().startswith(profile.github_username.lower() + '/'):
+            source = 'github_owned'
+
     if source == 'github_owned':
-        github_token = getattr(getattr(request.user, 'profile', None), 'github_token', None)
+        github_token = getattr(profile, 'github_token', None)
         if not github_token:
             source = 'public_url'
 
