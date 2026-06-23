@@ -130,10 +130,28 @@ def api_logout(request):
     django_logout(request)
     return JsonResponse({'message': 'Logout successful'})
 
+def check_github_write_access(github_token, full_name):
+    if not github_token or not full_name:
+        return False
+    try:
+        headers = {
+            "Authorization": f"token {github_token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        url = f"https://api.github.com/repos/{full_name}"
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            repo_data = res.json()
+            permissions = repo_data.get('permissions', {})
+            return permissions.get('push', False) or permissions.get('admin', False)
+    except Exception as e:
+        print(f"Error checking GitHub write access for {full_name}: {e}")
+    return False
+
 def promote_user_owned_repos(user):
     try:
         profile = user.profile
-        if profile.github_token and profile.github_username:
+        if profile.github_token:
             # Grant agent access if not set
             if not profile.has_full_agent_access:
                 profile.has_full_agent_access = True
@@ -141,9 +159,15 @@ def promote_user_owned_repos(user):
             
             # Auto-promote user's repositories from 'public_url' to 'github_owned'
             repos = Repository.objects.filter(user=user, source='public_url')
-            prefix = profile.github_username.lower() + '/'
             for repo in repos:
-                if repo.full_name.lower().startswith(prefix):
+                is_owned = False
+                prefix = profile.github_username.lower() + '/' if profile.github_username else None
+                if prefix and repo.full_name.lower().startswith(prefix):
+                    is_owned = True
+                elif check_github_write_access(profile.github_token, repo.full_name):
+                    is_owned = True
+                
+                if is_owned:
                     repo.source = 'github_owned'
                     repo.save()
     except Exception:
@@ -665,10 +689,17 @@ def api_repos_connect(request):
                 Message.objects.create(conversation=conv, role='assistant', content=ai_text)
             
     source = data.get('source', 'public_url')
-    # Auto-detect if repository belongs to the user
+    # Auto-detect if repository belongs to the user or they have write access
     profile = getattr(request.user, 'profile', None)
-    if profile and profile.github_token and profile.github_username:
-        if full_name.lower().startswith(profile.github_username.lower() + '/'):
+    if profile and profile.github_token:
+        is_owned = False
+        prefix = profile.github_username.lower() + '/' if profile.github_username else None
+        if prefix and full_name.lower().startswith(prefix):
+            is_owned = True
+        elif check_github_write_access(profile.github_token, full_name):
+            is_owned = True
+
+        if is_owned:
             source = 'github_owned'
 
     if source == 'github_owned':
