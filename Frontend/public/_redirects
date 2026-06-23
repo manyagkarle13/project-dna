@@ -1,2 +1,3 @@
 /api/*  https://project-dna.onrender.com/api/:splat  200
+/dashboard.html  /dashboard.html  200
 /*      /index.html                                   200

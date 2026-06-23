@@ -298,7 +298,7 @@ def auth_google_callback(request):
 
         # Generate one-time token for cross-domain handoff
         auth_token = generate_auth_token(user.id)
-        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?auth_token={auth_token}")
+        return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html?auth_token={auth_token}")
     except Exception as e:
         print("Google OAuth Exception:", e)
         return HttpResponseRedirect(f"{frontend_url}?auth_error=google_server_exception")
@@ -433,7 +433,7 @@ def auth_github_callback(request):
 
             # Generate one-time token for cross-domain handoff
             auth_token = generate_auth_token(user.id)
-            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}?auth_token={auth_token}")
+            return HttpResponseRedirect(f"{frontend_url.rstrip('/')}/dashboard.html?auth_token={auth_token}")
     except Exception as e:
         print("GitHub OAuth Exception:", e)
         error_type = "github_link_exception" if is_linking else "github_server_exception"
