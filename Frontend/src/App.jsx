@@ -1040,7 +1040,17 @@ function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const result = await response.json();
+        
+        let result = {};
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          result = await response.json();
+        } else {
+          const textRes = await response.text();
+          if (!response.ok) {
+            throw new Error(`Server error (${response.status}): ${textRes.substring(0, 100) || 'Empty response'}`);
+          }
+        }
         
         if (!response.ok) {
           throw new Error(result.error || 'Failed to connect repository.');
@@ -1075,7 +1085,17 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await response.json();
+
+      let data = {};
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const textResponse = await response.text();
+        if (!response.ok) {
+          throw new Error(`Server error (${response.status}): ${textResponse.substring(0, 100) || 'Empty response'}`);
+        }
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send message.');
